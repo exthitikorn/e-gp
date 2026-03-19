@@ -96,6 +96,14 @@ export async function parsePdfForAnnouncement(
           updateData.bidDate = new Date(parsed.bidDate);
         }
 
+        if (parsed.projectStatus) {
+          updateData.status = parsed.projectStatus;
+        }
+
+        if (parsed.cancelDate) {
+          updateData.cancelDate = new Date(parsed.cancelDate);
+        }
+
         if (Object.keys(updateData).length > 0) {
           await prisma.egpProject.update(
             {
@@ -169,6 +177,14 @@ export async function parsePdfForAnnouncement(
 
         if (parsed.bidDate) {
           updateData.bidDate = new Date(parsed.bidDate);
+        }
+
+        if (parsed.projectStatus) {
+          updateData.status = parsed.projectStatus;
+        }
+
+        if (parsed.cancelDate) {
+          updateData.cancelDate = new Date(parsed.cancelDate);
         }
 
         if (Object.keys(updateData).length > 0) {

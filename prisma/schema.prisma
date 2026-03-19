@@ -16,6 +16,8 @@ model EgpProject {
   winnerName             String?  @db.VarChar(512)
   winnerAmountBaht       Decimal? @db.Decimal(15, 2)
   bidDate                DateTime?
+  status                 String?  @db.VarChar(191)
+  cancelDate             DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

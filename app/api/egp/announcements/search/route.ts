@@ -6,6 +6,9 @@ interface SearchParams {
   startDate?: string | null;
   endDate?: string | null;
   q?: string | null;
+  projectNumber?: string | null;
+  methodId?: string | null;
+  status?: string | null;
   page: number;
   pageSize: number;
 }
@@ -18,6 +21,9 @@ function parseSearchParams(request: Request): SearchParams {
   const startDate = searchParams.get("startDate");
   const endDate = searchParams.get("endDate");
   const q = searchParams.get("q");
+  const projectNumber = searchParams.get("projectNumber");
+  const methodId = searchParams.get("methodId");
+  const status = searchParams.get("status");
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Number(searchParams.get("pageSize") ?? DEFAULT_PAGE_SIZE);
 
@@ -25,6 +31,9 @@ function parseSearchParams(request: Request): SearchParams {
     startDate,
     endDate,
     q,
+    projectNumber,
+    methodId,
+    status,
     page: Number.isNaN(page) || page < 1 ? 1 : page,
     pageSize:
       Number.isNaN(pageSize) || pageSize < 1 || pageSize > 100
@@ -34,9 +43,19 @@ function parseSearchParams(request: Request): SearchParams {
 }
 
 export async function GET(request: Request) {
-  const { startDate, endDate, q, page, pageSize } = parseSearchParams(request);
+  const {
+    startDate,
+    endDate,
+    q,
+    projectNumber,
+    methodId,
+    status,
+    page,
+    pageSize,
+  } = parseSearchParams(request);
 
   const where: Prisma.EgpAnnouncementWhereInput = {};
+  let projectWhere: Prisma.EgpProjectWhereInput | undefined;
 
   if (startDate || endDate) {
     where.publishedAt = {};
@@ -56,7 +75,48 @@ export async function GET(request: Request) {
           title: { contains: q },
         },
       },
+      {
+        project: {
+          projectNumber: { contains: q },
+        },
+      },
+      {
+        project: {
+          methodId: { contains: q },
+        },
+      },
     ];
+  }
+
+  if (projectNumber) {
+    projectWhere = {
+      ...(projectWhere ?? {}),
+      projectNumber: {
+        contains: projectNumber,
+      },
+    };
+  }
+
+  if (methodId) {
+    projectWhere = {
+      ...(projectWhere ?? {}),
+      methodId: {
+        contains: methodId,
+      },
+    };
+  }
+
+  if (status) {
+    projectWhere = {
+      ...(projectWhere ?? {}),
+      status: {
+        contains: status,
+      },
+    };
+  }
+
+  if (projectWhere) {
+    where.project = projectWhere;
   }
 
   const skip = (page - 1) * pageSize;
@@ -83,6 +143,7 @@ export async function GET(request: Request) {
     title: item.project?.title ?? "",
     announceType: item.announceType,
     methodId: item.project?.methodId ?? null,
+    status: item.project?.status ?? null,
     rawDescription: item.rawDescription,
     link: item.link,
     publishedAt: item.publishedAt,

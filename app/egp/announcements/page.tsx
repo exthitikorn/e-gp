@@ -4,10 +4,11 @@ import Link from "next/link";
 import { IngestButton } from "./IngestButton";
 
 type SearchParams = {
-  startDate?: string;
-  endDate?: string;
   q?: string;
   page?: string;
+  projectNumber?: string;
+  methodId?: string;
+  status?: string;
 };
 
 interface SearchPageProps {
@@ -19,6 +20,7 @@ type SearchResponseItem = {
   projectNumber: string | null;
   announceType: string | null;
   methodId: string | null;
+  status: string | null;
   title: string;
   rawDescription: string;
   link: string;
@@ -32,6 +34,20 @@ type SearchResponse = {
   total: number;
   totalPages: number;
 };
+
+function getStatusBadgeClass(status: string): string {
+  const normalized = status.trim();
+
+  if (/ยกเลิก/u.test(normalized)) {
+    return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200";
+  }
+
+  if (/ผู้ชนะการเสนอราคา|ผู้ได้รับการคัดเลือก|อนุมัติ/u.test(normalized)) {
+    return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200";
+  }
+
+  return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
+}
 
 async function fetchAnnouncementsFromApi(
   params: URLSearchParams,
@@ -59,14 +75,17 @@ export default async function AnnouncementsPage({
   const resolvedSearchParams = (await searchParams) ?? {};
   const params = new URLSearchParams();
 
-  if (resolvedSearchParams.startDate) {
-    params.set("startDate", resolvedSearchParams.startDate);
-  }
-  if (resolvedSearchParams.endDate) {
-    params.set("endDate", resolvedSearchParams.endDate);
-  }
   if (resolvedSearchParams.q) {
     params.set("q", resolvedSearchParams.q);
+  }
+  if (resolvedSearchParams.projectNumber) {
+    params.set("projectNumber", resolvedSearchParams.projectNumber);
+  }
+  if (resolvedSearchParams.methodId) {
+    params.set("methodId", resolvedSearchParams.methodId);
+  }
+  if (resolvedSearchParams.status) {
+    params.set("status", resolvedSearchParams.status);
   }
   if (resolvedSearchParams.page) {
     params.set("page", resolvedSearchParams.page);
@@ -76,6 +95,8 @@ export default async function AnnouncementsPage({
   const announcements = data.items;
   const currentPage = data.page;
   const totalPages = data.totalPages;
+
+  const formKey = params.toString();
 
   const createPageLink = (page: number) => {
     const urlParams = new URLSearchParams(params.toString());
@@ -107,37 +128,12 @@ export default async function AnnouncementsPage({
         </header>
 
         <section className="mb-6 rounded-2xl border border-slate-200 bg-white/90 p-4">
-          <form className="grid gap-4 text-sm sm:grid-cols-3 sm:items-end">
-            <div className="space-y-1">
-              <label
-                htmlFor="startDate"
-                className="block text-xs font-medium text-slate-600"
-              >
-                วันที่เริ่มต้น
-              </label>
-              <input
-                id="startDate"
-                name="startDate"
-                type="date"
-                defaultValue={resolvedSearchParams.startDate}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-              />
-            </div>
-            <div className="space-y-1">
-              <label
-                htmlFor="endDate"
-                className="block text-xs font-medium text-slate-600"
-              >
-                วันที่สิ้นสุด
-              </label>
-              <input
-                id="endDate"
-                name="endDate"
-                type="date"
-                defaultValue={resolvedSearchParams.endDate}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-              />
-            </div>
+          <form
+            key={formKey}
+            method="GET"
+            action="/egp/announcements"
+            className="grid gap-4 text-sm sm:grid-cols-4 sm:items-end"
+          >
             <div className="space-y-1 sm:col-span-1 sm:flex sm:flex-col sm:items-stretch sm:gap-2">
               <label
                 htmlFor="q"
@@ -153,6 +149,74 @@ export default async function AnnouncementsPage({
                 placeholder="เช่น จัดซื้อครุภัณฑ์, ก่อสร้างถนน"
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
               />
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
+                htmlFor="projectNumber"
+                className="block text-xs font-medium text-slate-600"
+              >
+                เลขที่โครงการ
+              </label>
+              <input
+                id="projectNumber"
+                name="projectNumber"
+                type="text"
+                defaultValue={resolvedSearchParams.projectNumber}
+                placeholder="เช่น 6701-001-0001"
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
+                htmlFor="methodId"
+                className="block text-xs font-medium text-slate-600"
+              >
+                วิธีการจัดหา
+              </label>
+              <select
+                id="methodId"
+                name="methodId"
+                defaultValue={resolvedSearchParams.methodId ?? ""}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value="">ทั้งหมด</option>
+                <option value="e-bidding">e-bidding</option>
+                <option value="e-market">e-market</option>
+                <option value="เฉพาะเจาะจง">เฉพาะเจาะจง</option>
+              </select>
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
+                htmlFor="status"
+                className="block text-xs font-medium text-slate-600"
+              >
+                สถานะโครงการ
+              </label>
+              <select
+                id="status"
+                name="status"
+                defaultValue={resolvedSearchParams.status ?? ""}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value="">ทั้งหมด</option>
+                <option value="ยกเลิก">ยกเลิกโครงการ</option>
+                <option value="ผู้ชนะการเสนอราคา">ประกาศผู้ชนะการเสนอราคา</option>
+                <option value="หนังสือเชิญชวน/ประกาศเชิญชวน">หนังสือเชิญชวน/ประกาศเชิญชวน</option>
+              </select>
+            </div>
+            <div className="sm:col-span-4 flex items-end justify-end gap-2">
+              <Link
+                href="/egp/announcements"
+                className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-400 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                ล้างเงื่อนไข
+              </Link>
+              <button
+                type="submit"
+                className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                ค้นหา
+              </button>
             </div>
           </form>
           <p className="mt-3 text-xs text-slate-500">
@@ -192,16 +256,27 @@ export default async function AnnouncementsPage({
                           <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
                             {item.title}
                           </h2>
-                          {item.publishedAt && (
-                            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                              {new Date(item.publishedAt).toLocaleString("th-TH")}
+                          {item.status ? (
+                            <span
+                              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
+                                item.status,
+                              )}`}
+                            >
+                              {item.status}
                             </span>
+                          ) : (
+                            item.publishedAt && (
+                              <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                                {new Date(item.publishedAt).toLocaleString("th-TH")}
+                              </span>
+                            )
                           )}
                         </div>
 
                         {(item.projectNumber ||
                           item.methodId ||
-                          item.announceType) && (
+                          item.announceType ||
+                          item.status) && (
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
                             {item.projectNumber && (
                               <span>
@@ -217,14 +292,6 @@ export default async function AnnouncementsPage({
                                   วิธีการจัดหา:
                                 </span>{" "}
                                 {item.methodId}
-                              </span>
-                            )}
-                            {item.announceType && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  ประเภทประกาศ:
-                                </span>{" "}
-                                {item.announceType}
                               </span>
                             )}
                           </div>
@@ -238,16 +305,27 @@ export default async function AnnouncementsPage({
                           <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
                             {item.title}
                           </h2>
-                          {item.publishedAt && (
-                            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                              {new Date(item.publishedAt).toLocaleString("th-TH")}
+                          {item.status ? (
+                            <span
+                              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
+                                item.status,
+                              )}`}
+                            >
+                              {item.status}
                             </span>
+                          ) : (
+                            item.publishedAt && (
+                              <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                                {new Date(item.publishedAt).toLocaleString("th-TH")}
+                              </span>
+                            )
                           )}
                         </div>
 
                         {(item.projectNumber ||
                           item.methodId ||
-                          item.announceType) && (
+                          item.announceType ||
+                          item.status) && (
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
                             {item.projectNumber && (
                               <span>
@@ -271,6 +349,14 @@ export default async function AnnouncementsPage({
                                   ประเภทประกาศ:
                                 </span>{" "}
                                 {item.announceType}
+                              </span>
+                            )}
+                            {item.status && (
+                              <span>
+                                <span className="font-medium text-slate-800">
+                                  สถานะโครงการ:
+                                </span>{" "}
+                                {item.status}
                               </span>
                             )}
                           </div>

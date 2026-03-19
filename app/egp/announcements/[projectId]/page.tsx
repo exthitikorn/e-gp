@@ -1,7 +1,21 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { PdfParseButton } from "../PdfParseButton";
+// import { PdfParseButton } from "../PdfParseButton";
+
+function getStatusBadgeClass(status: string): string {
+  const normalized = status.trim();
+
+  if (/ยกเลิก/u.test(normalized)) {
+    return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200";
+  }
+
+  if (/ผู้ชนะการเสนอราคา|ผู้ได้รับการคัดเลือก|อนุมัติ/u.test(normalized)) {
+    return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200";
+  }
+
+  return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
+}
 
 interface ProjectDetailPageProps {
   params: Promise<{
@@ -18,6 +32,7 @@ interface ProjectDetailResponse {
   winnerName: string | null;
   winnerAmountBaht: string | null;
   bidDate: string | null;
+  status: string | null;
   types: {
     id: string;
     announceType: string;
@@ -85,7 +100,7 @@ export default async function ProjectDetailPage({
           <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
             {data.title}
           </h1>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
             {data.projectNumber && (
               <span>
                 <span className="font-medium text-slate-800">
@@ -100,6 +115,15 @@ export default async function ProjectDetailPage({
                   วิธีการจัดหา:
                 </span>{" "}
                 {data.methodId}
+              </span>
+            )}
+            {data.status && (
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${getStatusBadgeClass(
+                  data.status,
+                )}`}
+              >
+                สถานะโครงการ: {data.status}
               </span>
             )}
             {data.bidDate && (
@@ -248,9 +272,9 @@ export default async function ProjectDetailPage({
                     <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       ลิงก์ e-GP
                     </th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
+                    {/* <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       ดึงข้อมูลจาก PDF
-                    </th>
+                    </th> */}
                   </tr>
                 </thead>
                 <tbody>
@@ -290,7 +314,7 @@ export default async function ProjectDetailPage({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-2 align-top">
+                      {/* <td className="px-4 py-2 align-top">
                         <PdfParseButton
                           announcementId={type.id}
                           announceType={type.announceType}
@@ -298,7 +322,7 @@ export default async function ProjectDetailPage({
                             type.link && /^https?:\/\//i.test(type.link),
                           )}
                         />
-                      </td>
+                      </td> */}
                     </tr>
                   ))}
                 </tbody>

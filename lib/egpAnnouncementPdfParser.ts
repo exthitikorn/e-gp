@@ -5,6 +5,11 @@ export interface EgpPdfParsedFields {
   // วันที่เสนอราคา (จากข้อความ "ในวันที่ ...")
   // เก็บเป็น ISO date string รูปแบบ "YYYY-MM-DD"
   bidDate?: string;
+  // วันที่ยกเลิกโครงการ (จากประกาศยกเลิกประกาศเชิญชวน)
+  // เก็บเป็น ISO date string รูปแบบ "YYYY-MM-DD"
+  cancelDate?: string;
+  // สถานะโครงการที่อนุมานได้จากข้อความในประกาศ
+  projectStatus?: string;
 }
 
 const THAI_DIGIT_MAP: Record<string, string> = {
@@ -272,6 +277,42 @@ function extractWinnerInfo(text: string): {
   return { winnerName, winnerAmountBaht };
 }
 
+function parseCancelAnnouncement(text: string): EgpPdfParsedFields {
+  const normalizedText = text.replace(/\s+/g, " ").trim();
+
+  // ระบุวันที่ยกเลิกจากบรรทัด "ประกาศ ณ วันที่ ..."
+  let cancelDate: string | undefined;
+
+  const cancelDateMatch = normalizedText.match(
+    /ประกาศ\s+ณ\s+วันที่\s*([0-9๐-๙]{1,2}\s*(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:พ\.ศ\.)?\s*[0-9๐-๙]{4})/u,
+  );
+
+  if (cancelDateMatch?.[1]) {
+    cancelDate = parseThaiDateToIso(cancelDateMatch[1]);
+  }
+
+  // fallback: ถ้า pattern เฉพาะไม่เจอ ให้ใช้วันที่ล่าสุดในเอกสาร
+  if (!cancelDate) {
+    const allDates = extractAllThaiDates(normalizedText);
+    if (allDates.length > 0) {
+      // แปลงเป็น ISO แล้วเลือกวันที่ที่ใหม่ที่สุด
+      const isoDates = allDates
+        .map((d) => parseThaiDateToIso(d))
+        .filter((d): d is string => Boolean(d))
+        .sort(); // ISO date string สามารถ sort เพื่อหา max ได้ตรง ๆ
+
+      if (isoDates.length > 0) {
+        cancelDate = isoDates[isoDates.length - 1];
+      }
+    }
+  }
+
+  return {
+    cancelDate,
+    projectStatus: "ยกเลิกโครงการ",
+  };
+}
+
 function parseInviteAnnouncement(text: string): EgpPdfParsedFields {
   // pdf-parse อาจมี newline/ช่องว่างแปลก ๆ ระหว่างคำ
   // ทำให้ regex จับยากขึ้น เรา normalize ให้เป็น space เดียว
@@ -284,6 +325,7 @@ function parseInviteAnnouncement(text: string): EgpPdfParsedFields {
   return {
     centralPriceBaht: extractPriceBaht(normalizedText),
     bidDate,
+    projectStatus: "หนังสือเชิญชวน/ประกาศเชิญชวน",
   };
 }
 
@@ -294,6 +336,7 @@ function parseWinnerAnnouncement(text: string): EgpPdfParsedFields {
   return {
     winnerName,
     winnerAmountBaht,
+    projectStatus: "อนุมัติสั่งซื้อสั่งจ้างและประกาศผู้ชนะการเสนอราคา",
   };
 }
 
@@ -304,8 +347,17 @@ export function parseEgpPdfTextByAnnounceType(
   const normalizedType = announceType.replace(/\s+/g, " ").trim();
 
   // จัดกลุ่มด้วย pattern แทนการเทียบข้อความตรง ๆ
-  // กลุ่มประกาศเชิญชวน
-  if (/เชิญชวน/u.test(normalizedType)) {
+  // กลุ่มประกาศยกเลิกประกาศเชิญชวน
+  if (/ยกเลิกประกาศ/u.test(normalizedType)) {
+    return parseCancelAnnouncement(text);
+  }
+
+  // กลุ่มประกาศเชิญชวน + ร่างเอกสารเชิญชวน (e-Bidding / สอบราคา)
+  if (
+    /ประกาศเชิญชวน/u.test(normalizedType) ||
+    /ร่างเอกสารประกวดราคา\s*\(e-Bidding\)/u.test(normalizedType) ||
+    /ร่างเอกสารซื้อหรือจ้างด้วยวิธีสอบราคา/u.test(normalizedType)
+  ) {
     return parseInviteAnnouncement(text);
   }
 
