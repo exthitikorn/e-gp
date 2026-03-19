@@ -1,5 +1,6 @@
 import prisma from "@/lib/db";
 import type { EgpAnnouncement as RssAnnouncement } from "@/lib/egpRss";
+import { parsePdfForAnnouncement } from "@/lib/egpAnnouncementPdfIngest";
 
 export async function upsertAnnouncements(
   announcements: RssAnnouncement[],
@@ -56,6 +57,19 @@ export async function upsertAnnouncements(
 
     if (isNew) {
       created += 1;
+
+      if (child.link && /^https?:\/\//i.test(child.link)) {
+        try {
+          await parsePdfForAnnouncement({
+            id: child.id,
+            announceType: child.announceType,
+            link: child.link,
+            projectId: child.projectId,
+          });
+        } catch {
+          // best-effort เท่านั้น ไม่ให้ ingest ทั้งชุดล้มเพราะ PDF ใด PDF หนึ่ง
+        }
+      }
     } else {
       updated += 1;
     }
@@ -63,3 +77,4 @@ export async function upsertAnnouncements(
 
   return { created, updated };
 }
+

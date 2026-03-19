@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { PdfParseButton } from "../PdfParseButton";
 
 interface ProjectDetailPageProps {
   params: Promise<{
@@ -13,6 +14,8 @@ interface ProjectDetailResponse {
   projectNumber: string | null;
   title: string;
   methodId: string | null;
+  winnerName: string | null;
+  winnerAmountBaht: string | null;
   types: {
     id: string;
     announceType: string;
@@ -82,6 +85,27 @@ export default async function ProjectDetailPage({
                 {data.methodId}
               </span>
             )}
+            {data.winnerName && (
+              <span>
+                <span className="font-medium text-slate-800">
+                  ผู้ที่ได้รับการคัดเลือก:
+                </span>{" "}
+                {data.winnerName}
+              </span>
+            )}
+            {data.winnerAmountBaht && (
+              <span>
+                <span className="font-medium text-slate-800">
+                  มูลค่าที่จัดหาได้:
+                </span>{" "}
+                {Number(data.winnerAmountBaht).toLocaleString("th-TH", {
+                  style: "currency",
+                  currency: "THB",
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            )}
           </div>
         </header>
 
@@ -106,6 +130,9 @@ export default async function ProjectDetailPage({
                     </th>
                     <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       ลิงก์ e-GP
+                    </th>
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
+                      ดึงข้อมูลจาก PDF
                     </th>
                   </tr>
                 </thead>
@@ -145,6 +172,15 @@ export default async function ProjectDetailPage({
                             -
                           </span>
                         )}
+                      </td>
+                      <td className="px-4 py-2 align-top">
+                        <PdfParseButton
+                          announcementId={type.id}
+                          announceType={type.announceType}
+                          canParse={Boolean(
+                            type.link && /^https?:\/\//i.test(type.link),
+                          )}
+                        />
                       </td>
                     </tr>
                   ))}
