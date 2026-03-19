@@ -8,6 +8,7 @@ interface ProjectDetailResponse {
   methodId: string | null;
   winnerName: string | null;
   winnerAmountBaht: string | null;
+  bidDate: string | null;
   types: {
     id: string;
     announceType: string;
@@ -53,6 +54,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
     winnerAmountBaht: project.winnerAmountBaht
       ? project.winnerAmountBaht.toString()
       : null,
+    bidDate: project.bidDate ? project.bidDate.toISOString() : null,
     types: project.announcements.map(
       (t): ProjectDetailResponse["types"][number] => ({
         id: t.id,

@@ -90,6 +90,12 @@ export async function parsePdfForAnnouncement(
           updateData.winnerAmountBaht = parsed.winnerAmountBaht;
         }
 
+        if (parsed.bidDate) {
+          // parsed.bidDate เป็น ISO date string (YYYY-MM-DD)
+          // แปลงเป็น Date ก่อนเพื่อให้ Prisma เขียนลงฟิลด์ DateTime ได้ถูกต้อง
+          updateData.bidDate = new Date(parsed.bidDate);
+        }
+
         if (Object.keys(updateData).length > 0) {
           await prisma.egpProject.update(
             {
@@ -161,6 +167,10 @@ export async function parsePdfForAnnouncement(
           updateData.winnerAmountBaht = parsed.winnerAmountBaht;
         }
 
+        if (parsed.bidDate) {
+          updateData.bidDate = new Date(parsed.bidDate);
+        }
+
         if (Object.keys(updateData).length > 0) {
           await prisma.egpProject.update(
             {
@@ -188,4 +198,3 @@ export async function parsePdfForAnnouncement(
     });
   }
 }
-

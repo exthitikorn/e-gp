@@ -15,6 +15,7 @@ model EgpProject {
   centralPriceBaht       Decimal? @db.Decimal(15, 2)
   winnerName             String?  @db.VarChar(512)
   winnerAmountBaht       Decimal? @db.Decimal(15, 2)
+  bidDate                DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 

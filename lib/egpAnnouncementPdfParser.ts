@@ -2,6 +2,9 @@ export interface EgpPdfParsedFields {
   centralPriceBaht?: string;
   winnerName?: string;
   winnerAmountBaht?: string;
+  // วันที่เสนอราคา (จากข้อความ "ในวันที่ ...")
+  // เก็บเป็น ISO date string รูปแบบ "YYYY-MM-DD"
+  bidDate?: string;
 }
 
 const THAI_DIGIT_MAP: Record<string, string> = {
@@ -27,6 +30,112 @@ function normalizeBahtNumber(raw: string): string {
   return toWesternDigits(raw)
     .replace(/[,\s]+/g, "")
     .trim();
+}
+
+function parseThaiDateToIso(input: string): string | undefined {
+  // แปลงเลขไทย -> อารบิก ก่อน แล้วค่อย parse
+  const normalized = toWesternDigits(input).replace(/\s+/g, " ").trim();
+
+  const monthMap: Record<string, number> = {
+    มกราคม: 1,
+    กุมภาพันธ์: 2,
+    มีนาคม: 3,
+    เมษายน: 4,
+    พฤษภาคม: 5,
+    มิถุนายน: 6,
+    กรกฎาคม: 7,
+    สิงหาคม: 8,
+    กันยายน: 9,
+    ตุลาคม: 10,
+    พฤศจิกายน: 11,
+    ธันวาคม: 12,
+  };
+
+  const re =
+    /(?:วันที่\s*)?([0-9]{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:พ\.ศ\.)?\s*([0-9]{4})/u;
+
+  const match = normalized.match(re);
+  if (!match) return undefined;
+
+  const day = parseInt(match[1], 10);
+  const month = monthMap[match[2]];
+  let year = parseInt(match[3], 10);
+
+  if (!month || !day || !year) return undefined;
+
+  // ปี พ.ศ. แปลงเป็น ค.ศ. โดยลบ 543 (กรณีปีใหญ่กว่า 2400 สมมุติว่าเป็น พ.ศ.)
+  if (year > 2400) {
+    year -= 543;
+  }
+
+  const mm = month.toString().padStart(2, "0");
+  const dd = day.toString().padStart(2, "0");
+
+  return `${year}-${mm}-${dd}`;
+}
+
+function extractAllThaiDates(text: string): string[] {
+  // รองรับรูปแบบ "วันที่ ๒๕ มีนาคม ๒๕๖๙", "๑๗ มีนาคม พ.ศ. ๒๕๖๙", "25 มีนาคม 2569" ฯลฯ
+  const monthPattern =
+    "(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)";
+
+  const dateRegex = new RegExp(
+    `(?:วันที่\\s*)?([0-9๐-๙]{1,2})\\s*${monthPattern}\\s*(?:พ\\.ศ\\.)?\\s*([0-9๐-๙]{4})`,
+    "gu",
+  );
+
+  const results = new Set<string>();
+  const primaryResults = new Set<string>();
+
+  for (const match of text.matchAll(dateRegex)) {
+    const raw = match[0]?.trim();
+    if (!raw) continue;
+    results.add(raw);
+  }
+
+  // เสริม heuristic: เคส "ในวันที่ <วัน> ... ระหว่างเวลา ..." ที่ pdf-parse ทำให้ เดือน/ปี หลุดไปอยู่ไกล
+  // ขั้นตอน:
+  // 1) หา "ในวันที่ <วัน>" ก่อน
+  // 2) เปิด window ถัดจากจุดนั้นจำนวนหนึ่งตัวอักษร
+  // 3) หา "<เดือน> <ปี>" ภายใน window แล้วประกอบเป็นวันที่สมบูรณ์
+  const dayAnchorRegex = /ในวันที่\s*([0-9๐-๙]{1,2})/gu;
+  const monthYearRegex = new RegExp(
+    `${monthPattern}\\s*([0-9๐-๙]{4})`,
+    "u",
+  );
+
+  const WINDOW_SIZE = 160;
+
+  for (const match of text.matchAll(dayAnchorRegex)) {
+    const day = match[1]?.trim();
+    if (!day) continue;
+
+    const anchorIndex = match.index ?? -1;
+    if (anchorIndex < 0) continue;
+
+    const windowStart = anchorIndex;
+    const windowEnd = Math.min(text.length, anchorIndex + WINDOW_SIZE);
+    const windowText = text.slice(windowStart, windowEnd);
+
+    const monthYearMatch = windowText.match(monthYearRegex);
+    if (!monthYearMatch) continue;
+
+    const month = monthYearMatch[1]?.trim();
+    const year = monthYearMatch[2]?.trim();
+    if (!month || !year) continue;
+
+    const combined = `วันที่ ${day} ${month} ${year}`.trim();
+    results.add(combined);
+    primaryResults.add(combined);
+  }
+
+  // ถ้ามีวันที่จาก heuristic "ในวันที่ ... เดือน ปี" ให้ถือว่าเป็น primary
+  // และคืนเฉพาะชุดนั้น (เช่น วันที่ประกวดราคา) เพื่อตัดวันที่อื่น ๆ ออก
+  if (primaryResults.size > 0) {
+    return Array.from(primaryResults);
+  }
+
+  return Array.from(results);
 }
 
 function extractPriceBaht(text: string): string | undefined {
@@ -168,8 +277,13 @@ function parseInviteAnnouncement(text: string): EgpPdfParsedFields {
   // ทำให้ regex จับยากขึ้น เรา normalize ให้เป็น space เดียว
   const normalizedText = text.replace(/\s+/g, " ").trim();
 
+  const dates = extractAllThaiDates(normalizedText);
+  const rawBidDate = dates[0];
+  const bidDate = rawBidDate ? parseThaiDateToIso(rawBidDate) : undefined;
+
   return {
     centralPriceBaht: extractPriceBaht(normalizedText),
+    bidDate,
   };
 }
 

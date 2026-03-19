@@ -16,6 +16,7 @@ interface ProjectDetailResponse {
   methodId: string | null;
   winnerName: string | null;
   winnerAmountBaht: string | null;
+  bidDate: string | null;
   types: {
     id: string;
     announceType: string;
@@ -83,6 +84,14 @@ export default async function ProjectDetailPage({
                   วิธีการจัดหา:
                 </span>{" "}
                 {data.methodId}
+              </span>
+            )}
+            {data.bidDate && (
+              <span>
+                <span className="font-medium text-slate-800">
+                  วันที่เสนอราคา:
+                </span>{" "}
+                {new Date(data.bidDate).toLocaleDateString("th-TH")}
               </span>
             )}
             {data.winnerName && (

@@ -6,6 +6,7 @@ type ParsedFields = {
   centralPriceBaht?: string;
   winnerName?: string;
   winnerAmountBaht?: string;
+  bidDate?: string;
 };
 
 function parseCentralPriceToNumber(raw?: string): number | null {
@@ -104,7 +105,7 @@ export function PdfParseButton({
 
       {result && (
         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-700">
-          {/* แสดงราคากลาง (ประกาศเชิญชวน) */}
+          {/* แสดงราคากลาง (ประกาศเชิญชวน) + วันที่เสนอราคา */}
           {result.centralPriceBaht && !result.winnerAmountBaht && (
             <div className="space-y-0.5">
               <div>
@@ -115,6 +116,14 @@ export function PdfParseButton({
                 </span>{" "}
                 บาท
               </div>
+              {result.bidDate && (
+                <div>
+                  วันที่เสนอราคา:{" "}
+                  <span className="font-medium">
+                    {new Date(result.bidDate).toLocaleDateString("th-TH")}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
