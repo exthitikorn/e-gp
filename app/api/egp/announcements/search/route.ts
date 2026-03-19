@@ -10,7 +10,7 @@ interface SearchParams {
   pageSize: number;
 }
 
-const DEFAULT_PAGE_SIZE = 20;
+const DEFAULT_PAGE_SIZE = 5;
 
 function parseSearchParams(request: Request): SearchParams {
   const { searchParams } = new URL(request.url);
@@ -50,8 +50,12 @@ export async function GET(request: Request) {
 
   if (q) {
     where.OR = [
-      { title: { contains: q } },
       { rawDescription: { contains: q } },
+      {
+        project: {
+          title: { contains: q },
+        },
+      },
     ];
   }
 
@@ -65,17 +69,30 @@ export async function GET(request: Request) {
       orderBy: { publishedAt: "desc" },
       skip,
       take,
+      include: {
+        project: true,
+      },
     }),
   ]);
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
+  const mappedItems = items.map((item) => ({
+    id: item.id,
+    projectNumber: item.project?.projectNumber ?? null,
+    title: item.project?.title ?? "",
+    announceType: item.announceType,
+    methodId: item.project?.methodId ?? null,
+    rawDescription: item.rawDescription,
+    link: item.link,
+    publishedAt: item.publishedAt,
+  }));
+
   return NextResponse.json({
-    items,
+    items: mappedItems,
     page,
     pageSize,
     total,
     totalPages,
   });
 }
-

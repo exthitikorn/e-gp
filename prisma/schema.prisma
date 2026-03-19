@@ -7,19 +7,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model EgpProject {
+  id            String   @id @db.VarChar(191)
+  projectNumber String?  @db.VarChar(191)
+  title         String   @db.VarChar(512)
+  methodId      String?  @db.VarChar(191)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  announcements EgpAnnouncement[]
+
+  @@index([projectNumber])
+  @@index([title])
+}
+
 model EgpAnnouncement {
   id             String   @id @db.VarChar(191)
-  projectNumber  String?  @db.VarChar(191)
-  title          String   @db.VarChar(512)
-  announceType   String?  @db.VarChar(191)
-  methodId       String?  @db.VarChar(191)
-  publishedAt    DateTime?
+  announceType   String   @db.VarChar(191)
   rawDescription String   @db.Text
   link           String   @db.VarChar(512)
+  publishedAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
+  projectId String
+  project   EgpProject @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@index([announceType])
   @@index([publishedAt])
-  @@index([projectNumber])
-  @@index([title])
 }

@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
     const buffer = await response.arrayBuffer();
     const xmlText = iconv.decode(Buffer.from(buffer), "win874");
-    console.log("[EGP RSS RAW XML]:", xmlText);
+    // console.log("[EGP RSS RAW XML]:", xmlText);
 
     const { XMLParser } = await import("fast-xml-parser");
     const parser = new XMLParser({
@@ -63,7 +63,7 @@ export async function GET(request: Request) {
     });
 
     const parsed = parser.parse(xmlText) as ParsedRss;
-    console.log("[EGP RSS PARSED]:", parsed);
+    // console.log("[EGP RSS PARSED]:", parsed);
     const announcements = mapRssToAnnouncements(parsed);
 
     const payload: EgpApiResponse = {
