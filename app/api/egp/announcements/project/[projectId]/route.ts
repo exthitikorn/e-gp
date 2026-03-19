@@ -6,6 +6,7 @@ interface ProjectDetailResponse {
   projectNumber: string | null;
   title: string;
   methodId: string | null;
+  centralPriceBaht: string | null;
   winnerName: string | null;
   winnerAmountBaht: string | null;
   bidDate: string | null;
@@ -50,6 +51,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
     projectNumber: project.projectNumber,
     title: project.title,
     methodId: project.methodId,
+    centralPriceBaht: project.centralPriceBaht
+      ? project.centralPriceBaht.toString()
+      : null,
     winnerName: project.winnerName,
     winnerAmountBaht: project.winnerAmountBaht
       ? project.winnerAmountBaht.toString()

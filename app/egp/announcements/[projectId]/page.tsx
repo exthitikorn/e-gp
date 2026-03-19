@@ -14,6 +14,7 @@ interface ProjectDetailResponse {
   projectNumber: string | null;
   title: string;
   methodId: string | null;
+  centralPriceBaht: string | null;
   winnerName: string | null;
   winnerAmountBaht: string | null;
   bidDate: string | null;
@@ -53,6 +54,21 @@ export default async function ProjectDetailPage({
   const projectId = resolvedParams.projectId;
 
   const data = await fetchProjectDetail(projectId);
+
+  const centralPrice =
+    data.centralPriceBaht !== null ? Number(data.centralPriceBaht) : null;
+  const winnerAmount =
+    data.winnerAmountBaht !== null ? Number(data.winnerAmountBaht) : null;
+
+  const savingAmount =
+    centralPrice !== null && winnerAmount !== null
+      ? centralPrice - winnerAmount
+      : null;
+
+  const savingPercent =
+    centralPrice !== null && winnerAmount !== null && centralPrice !== 0
+      ? (savingAmount! / centralPrice) * 100
+      : null;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
@@ -102,21 +118,113 @@ export default async function ProjectDetailPage({
                 {data.winnerName}
               </span>
             )}
-            {data.winnerAmountBaht && (
-              <span>
-                <span className="font-medium text-slate-800">
-                  มูลค่าที่จัดหาได้:
-                </span>{" "}
-                {Number(data.winnerAmountBaht).toLocaleString("th-TH", {
+          </div>
+        </header>
+
+        <section className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-xs text-slate-700 shadow-sm sm:p-6">
+          <h2 className="mb-3 text-sm font-semibold text-slate-900">
+            ข้อมูลโครงการ
+          </h2>
+          <div className="grid gap-y-2 text-[11px] sm:grid-cols-2 sm:gap-x-6">
+            <div className="flex">
+              <div className="w-32 shrink-0 font-medium text-slate-800">
+                เลขที่โครงการ
+              </div>
+              <div className="flex-1">
+                {data.projectNumber ?? <span className="text-slate-400">-</span>}
+              </div>
+            </div>
+            <div className="flex">
+              <div className="w-32 shrink-0 font-medium text-slate-800">
+                วิธีการจัดหา
+              </div>
+              <div className="flex-1">
+                {data.methodId ?? <span className="text-slate-400">-</span>}
+              </div>
+            </div>
+            <div className="flex">
+              <div className="w-32 shrink-0 font-medium text-slate-800">
+                วันที่เสนอราคา
+              </div>
+              <div className="flex-1">
+                {data.bidDate ? (
+                  new Date(data.bidDate).toLocaleDateString("th-TH")
+                ) : (
+                  <span className="text-slate-400">-</span>
+                )}
+              </div>
+            </div>
+            <div className="flex">
+              <div className="w-32 shrink-0 font-medium text-slate-800">
+                ผู้ที่ได้รับการคัดเลือก
+              </div>
+              <div className="flex-1">
+                {data.winnerName ?? <span className="text-slate-400">-</span>}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-center shadow-sm">
+            <div className="text-[11px] font-medium text-slate-600">
+              ราคากลาง (centralPriceBaht)
+            </div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
+              {centralPrice !== null ? (
+                centralPrice.toLocaleString("th-TH", {
                   style: "currency",
                   currency: "THB",
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
-                })}
-              </span>
-            )}
+                })
+              ) : (
+                <span className="text-xs font-normal text-slate-400">-</span>
+              )}
+            </div>
           </div>
-        </header>
+          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-center shadow-sm">
+            <div className="text-[11px] font-medium text-slate-600">
+              มูลค่าที่จัดหาได้
+            </div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
+              {winnerAmount !== null ? (
+                winnerAmount.toLocaleString("th-TH", {
+                  style: "currency",
+                  currency: "THB",
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })
+              ) : (
+                <span className="text-xs font-normal text-slate-400">-</span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-center shadow-sm">
+            <div className="text-[11px] font-medium text-slate-600">
+              ประหยัดได้ (ประมาณการ)
+            </div>
+            <div className="mt-1 text-base font-semibold text-slate-900">
+              {savingAmount !== null ? (
+                <>
+                  {savingAmount.toLocaleString("th-TH", {
+                    style: "currency",
+                    currency: "THB",
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
+                  {savingPercent !== null && (
+                    <span className="ml-1 text-xs font-medium text-emerald-700">
+                      ({savingPercent.toFixed(2)}%)
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs font-normal text-slate-400">-</span>
+              )}
+            </div>
+          </div>
+        </section>
 
         {data.types.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-6 text-sm text-slate-600">
