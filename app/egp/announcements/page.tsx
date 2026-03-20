@@ -4,50 +4,63 @@ import Link from "next/link";
 import { IngestButton } from "./IngestButton";
 
 type SearchParams = {
-  startDate?: string;
-  endDate?: string;
   q?: string;
   page?: string;
+  projectNumber?: string;
+  methodId?: string;
+  status?: string;
 };
 
 interface SearchPageProps {
   searchParams?: Promise<SearchParams>;
 }
 
-type SearchResponseItem = {
+type ProjectSearchItem = {
   id: string;
   projectNumber: string | null;
-  announceType: string | null;
   methodId: string | null;
+  status: string | null;
   title: string;
-  rawDescription: string;
-  link: string;
-  publishedAt: string | null;
+  updatedAt: string;
 };
 
-type SearchResponse = {
-  items: SearchResponseItem[];
+type ProjectSearchResponse = {
+  items: ProjectSearchItem[];
   page: number;
   pageSize: number;
   total: number;
   totalPages: number;
 };
 
-async function fetchAnnouncementsFromApi(
+function getStatusBadgeClass(status: string): string {
+  const normalized = status.trim();
+
+  if (/ยกเลิก/u.test(normalized)) {
+    return "bg-rose-100 text-rose-700 ring-1 ring-inset ring-rose-200";
+  }
+
+  if (/ผู้ชนะการเสนอราคา|ผู้ได้รับการคัดเลือก|อนุมัติ/u.test(normalized)) {
+    return "bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200";
+  }
+
+  return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
+}
+
+async function fetchProjectsFromApi(
   params: URLSearchParams,
-): Promise<SearchResponse> {
+): Promise<ProjectSearchResponse> {
   const query = params.toString();
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const res = await fetch(
-    `${baseUrl}/api/egp/announcements/search?${query}`,
+    `${baseUrl}/api/egp/projects/search?${query}`,
     {
       cache: "no-store",
     },
   );
 
   if (!res.ok) {
-    throw new Error("ไม่สามารถดึงข้อมูลประกาศจากฐานข้อมูลได้");
+    throw new Error("ไม่สามารถดึงข้อมูลโครงการจากฐานข้อมูลได้");
   }
 
   return res.json();
@@ -59,23 +72,28 @@ export default async function AnnouncementsPage({
   const resolvedSearchParams = (await searchParams) ?? {};
   const params = new URLSearchParams();
 
-  if (resolvedSearchParams.startDate) {
-    params.set("startDate", resolvedSearchParams.startDate);
-  }
-  if (resolvedSearchParams.endDate) {
-    params.set("endDate", resolvedSearchParams.endDate);
-  }
   if (resolvedSearchParams.q) {
     params.set("q", resolvedSearchParams.q);
+  }
+  if (resolvedSearchParams.projectNumber) {
+    params.set("projectNumber", resolvedSearchParams.projectNumber);
+  }
+  if (resolvedSearchParams.methodId) {
+    params.set("methodId", resolvedSearchParams.methodId);
+  }
+  if (resolvedSearchParams.status) {
+    params.set("status", resolvedSearchParams.status);
   }
   if (resolvedSearchParams.page) {
     params.set("page", resolvedSearchParams.page);
   }
 
-  const data = await fetchAnnouncementsFromApi(params);
-  const announcements = data.items;
+  const data = await fetchProjectsFromApi(params);
+  const projects = data.items;
   const currentPage = data.page;
   const totalPages = data.totalPages;
+
+  const formKey = params.toString();
 
   const createPageLink = (page: number) => {
     const urlParams = new URLSearchParams(params.toString());
@@ -99,51 +117,26 @@ export default async function AnnouncementsPage({
           </h1>
           <div className="space-y-2">
             <p className="text-sm text-slate-600 sm:text-base">
-              เก็บข้อมูลประกาศจากระบบ e-GP ของหน่วยงาน ตั้งแต่วันที่เริ่มใช้งาน RSS
-              สามารถค้นหาย้อนหลังได้ตลอดเวลา
+              เก็บข้อมูลโครงการและประกาศจากระบบ e-GP ของหน่วยงาน
+              ตั้งแต่วันที่เริ่มใช้งาน RSS สามารถค้นหาย้อนหลังได้ตลอดเวลา
             </p>
             <IngestButton />
           </div>
         </header>
 
         <section className="mb-6 rounded-2xl border border-slate-200 bg-white/90 p-4">
-          <form className="grid gap-4 text-sm sm:grid-cols-3 sm:items-end">
-            <div className="space-y-1">
-              <label
-                htmlFor="startDate"
-                className="block text-xs font-medium text-slate-600"
-              >
-                วันที่เริ่มต้น
-              </label>
-              <input
-                id="startDate"
-                name="startDate"
-                type="date"
-                defaultValue={resolvedSearchParams.startDate}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-              />
-            </div>
-            <div className="space-y-1">
-              <label
-                htmlFor="endDate"
-                className="block text-xs font-medium text-slate-600"
-              >
-                วันที่สิ้นสุด
-              </label>
-              <input
-                id="endDate"
-                name="endDate"
-                type="date"
-                defaultValue={resolvedSearchParams.endDate}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
-              />
-            </div>
+          <form
+            key={formKey}
+            method="GET"
+            action="/egp/announcements"
+            className="grid gap-4 text-sm sm:grid-cols-4 sm:items-end"
+          >
             <div className="space-y-1 sm:col-span-1 sm:flex sm:flex-col sm:items-stretch sm:gap-2">
               <label
                 htmlFor="q"
                 className="block text-xs font-medium text-slate-600"
               >
-                คีย์เวิร์ด (ชื่อโครงการ / รายละเอียด)
+                คีย์เวิร์ด (ชื่อโครงการ / เลขที่ / วิธีการ / สถานะ)
               </label>
               <input
                 id="q"
@@ -154,6 +147,74 @@ export default async function AnnouncementsPage({
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
               />
             </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
+                htmlFor="projectNumber"
+                className="block text-xs font-medium text-slate-600"
+              >
+                เลขที่โครงการ
+              </label>
+              <input
+                id="projectNumber"
+                name="projectNumber"
+                type="text"
+                defaultValue={resolvedSearchParams.projectNumber}
+                placeholder="เช่น 6701-001-0001"
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              />
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
+                htmlFor="methodId"
+                className="block text-xs font-medium text-slate-600"
+              >
+                วิธีการจัดหา
+              </label>
+              <select
+                id="methodId"
+                name="methodId"
+                defaultValue={resolvedSearchParams.methodId ?? ""}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value="">ทั้งหมด</option>
+                <option value="e-bidding">e-bidding</option>
+                <option value="e-market">e-market</option>
+                <option value="เฉพาะเจาะจง">เฉพาะเจาะจง</option>
+              </select>
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
+                htmlFor="status"
+                className="block text-xs font-medium text-slate-600"
+              >
+                สถานะโครงการ
+              </label>
+              <select
+                id="status"
+                name="status"
+                defaultValue={resolvedSearchParams.status ?? ""}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value="">ทั้งหมด</option>
+                <option value="ยกเลิก">ยกเลิกโครงการ</option>
+                <option value="ผู้ชนะการเสนอราคา">ประกาศผู้ชนะการเสนอราคา</option>
+                <option value="หนังสือเชิญชวน/ประกาศเชิญชวน">หนังสือเชิญชวน/ประกาศเชิญชวน</option>
+              </select>
+            </div>
+            <div className="sm:col-span-4 flex items-end justify-end gap-2">
+              <Link
+                href="/egp/announcements"
+                className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-400 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                ล้างเงื่อนไข
+              </Link>
+              <button
+                type="submit"
+                className="inline-flex items-center rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              >
+                ค้นหา
+              </button>
+            </div>
           </form>
           <p className="mt-3 text-xs text-slate-500">
             * การค้นหาใช้ข้อมูลที่ระบบดึงจาก RSS e-GP มาบันทึกไว้ในฐานข้อมูลของ
@@ -161,9 +222,9 @@ export default async function AnnouncementsPage({
           </p>
         </section>
 
-        {announcements.length === 0 ? (
+        {projects.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-6 text-sm text-slate-600">
-            ยังไม่มีข้อมูลประกาศที่ตรงกับเงื่อนไขที่ค้นหา
+            ยังไม่มีข้อมูลโครงการที่ตรงกับเงื่อนไขที่ค้นหา
           </div>
         ) : (
           <div className="space-y-3 text-xs text-slate-600">
@@ -172,19 +233,20 @@ export default async function AnnouncementsPage({
               <span className="font-semibold text-emerald-600">
                 {data.total}
               </span>{" "}
-              รายการ แสดงหน้า{" "}
+              โครงการ แสดงหน้า{" "}
               <span className="font-semibold text-slate-900">
                 {data.page} / {data.totalPages}
               </span>
             </p>
             <ul className="space-y-4">
-              {announcements.map((item) => (
-                <li key={item.id}>
-                  {item.projectNumber ? (
+              {projects.map((item) => {
+                const detailHref = `/egp/announcements/${encodeURIComponent(
+                  item.projectNumber ?? item.id,
+                )}`;
+                return (
+                  <li key={item.id}>
                     <Link
-                      href={`/egp/announcements/${encodeURIComponent(
-                        item.projectNumber,
-                      )}`}
+                      href={detailHref}
                       className="block rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-emerald-400/60 hover:bg-emerald-50/40"
                     >
                       <div className="flex flex-col gap-2">
@@ -192,16 +254,23 @@ export default async function AnnouncementsPage({
                           <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
                             {item.title}
                           </h2>
-                          {item.publishedAt && (
+                          {item.status ? (
+                            <span
+                              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
+                                item.status,
+                              )}`}
+                            >
+                              {item.status}
+                            </span>
+                          ) : (
                             <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                              {new Date(item.publishedAt).toLocaleString("th-TH")}
+                              อัปเดตล่าสุด{" "}
+                              {new Date(item.updatedAt).toLocaleString("th-TH")}
                             </span>
                           )}
                         </div>
 
-                        {(item.projectNumber ||
-                          item.methodId ||
-                          item.announceType) && (
+                        {(item.projectNumber || item.methodId) && (
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
                             {item.projectNumber && (
                               <span>
@@ -217,69 +286,15 @@ export default async function AnnouncementsPage({
                                   วิธีการจัดหา:
                                 </span>{" "}
                                 {item.methodId}
-                              </span>
-                            )}
-                            {item.announceType && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  ประเภทประกาศ:
-                                </span>{" "}
-                                {item.announceType}
                               </span>
                             )}
                           </div>
                         )}
                       </div>
                     </Link>
-                  ) : (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                          <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
-                            {item.title}
-                          </h2>
-                          {item.publishedAt && (
-                            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                              {new Date(item.publishedAt).toLocaleString("th-TH")}
-                            </span>
-                          )}
-                        </div>
-
-                        {(item.projectNumber ||
-                          item.methodId ||
-                          item.announceType) && (
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
-                            {item.projectNumber && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  เลขที่โครงการ:
-                                </span>{" "}
-                                {item.projectNumber}
-                              </span>
-                            )}
-                            {item.methodId && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  วิธีการจัดหา:
-                                </span>{" "}
-                                {item.methodId}
-                              </span>
-                            )}
-                            {item.announceType && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  ประเภทประกาศ:
-                                </span>{" "}
-                                {item.announceType}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
 
             {totalPages > 1 && (

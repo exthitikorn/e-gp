@@ -1,5 +1,6 @@
 import prisma from "@/lib/db";
 import type { EgpAnnouncement as RssAnnouncement } from "@/lib/egpRss";
+import { parsePdfForAnnouncement } from "@/lib/egpAnnouncementPdfIngest";
 
 export async function upsertAnnouncements(
   announcements: RssAnnouncement[],
@@ -56,10 +57,53 @@ export async function upsertAnnouncements(
 
     if (isNew) {
       created += 1;
+
+      if (child.link && /^https?:\/\//i.test(child.link)) {
+        try {
+          await parsePdfForAnnouncement({
+            id: child.id,
+            announceType: child.announceType,
+            link: child.link,
+            projectId: child.projectId,
+          });
+        } catch {
+          // best-effort เท่านั้น ไม่ให้ ingest ทั้งชุดล้มเพราะ PDF ใด PDF หนึ่ง
+        }
+      }
     } else {
       updated += 1;
+
+      // เมื่อมีการอัปเดต: re-parse อัตโนมัติสำหรับประเภทที่ต้องการ sync ข้อมูลจาก e-GP
+      // - ประกาศยกเลิกประกาศเชิญชวน: sync สถานะโครงการ/วันที่ยกเลิก
+      // - ประกาศเชิญชวน + ร่างเอกสารเชิญชวน: sync ราคากลาง วันที่เสนอราคา ฯลฯ
+      // - ประกาศรายชื่อผู้ชนะ/ประกาศผู้ได้รับการคัดเลือก: sync สถานะเป็น อนุมัติสั่งซื้อสั่งจ้างและประกาศผู้ชนะการเสนอราคา
+      const shouldReParseOnUpdate =
+        /ยกเลิกประกาศ/u.test(child.announceType) ||
+        /ประกาศเชิญชวน/u.test(child.announceType) ||
+        /ร่างเอกสารประกวดราคา\s*\(e-Bidding\)/u.test(child.announceType) ||
+        /ร่างเอกสารซื้อหรือจ้างด้วยวิธีสอบราคา/u.test(child.announceType) ||
+        /ผู้ชนะการเสนอราคา/u.test(child.announceType) ||
+        /ผู้ได้รับการคัดเลือก/u.test(child.announceType);
+
+      if (
+        child.link &&
+        /^https?:\/\//i.test(child.link) &&
+        shouldReParseOnUpdate
+      ) {
+        try {
+          await parsePdfForAnnouncement({
+            id: child.id,
+            announceType: child.announceType,
+            link: child.link,
+            projectId: child.projectId,
+          });
+        } catch {
+          // best-effort เช่นกัน ไม่ให้ ingest ทั้งชุดล้ม
+        }
+      }
     }
   }
 
   return { created, updated };
 }
+

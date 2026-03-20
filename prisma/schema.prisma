@@ -8,12 +8,18 @@ datasource db {
 }
 
 model EgpProject {
-  id            String   @id @db.VarChar(191)
-  projectNumber String?  @db.VarChar(191)
-  title         String   @db.VarChar(512)
-  methodId      String?  @db.VarChar(191)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                     String   @id @db.VarChar(191)
+  projectNumber          String?  @db.VarChar(191)
+  title                  String   @db.VarChar(512)
+  methodId               String?  @db.VarChar(191)
+  centralPriceBaht       Decimal? @db.Decimal(15, 2)
+  winnerName             String?  @db.VarChar(512)
+  winnerAmountBaht       Decimal? @db.Decimal(15, 2)
+  bidDate                DateTime?
+  status                 String?  @db.VarChar(191)
+  cancelDate             DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   announcements EgpAnnouncement[]
 
