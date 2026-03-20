@@ -94,7 +94,7 @@ export default async function ProjectDetailPage({
               href="/egp/announcements"
               className="text-emerald-700 hover:text-emerald-800"
             >
-              ← กลับไปหน้ารายการประกาศ
+              ← กลับไปหน้ารายการโครงการ
             </Link>
           </div>
           <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">

@@ -15,20 +15,17 @@ interface SearchPageProps {
   searchParams?: Promise<SearchParams>;
 }
 
-type SearchResponseItem = {
+type ProjectSearchItem = {
   id: string;
   projectNumber: string | null;
-  announceType: string | null;
   methodId: string | null;
   status: string | null;
   title: string;
-  rawDescription: string;
-  link: string;
-  publishedAt: string | null;
+  updatedAt: string;
 };
 
-type SearchResponse = {
-  items: SearchResponseItem[];
+type ProjectSearchResponse = {
+  items: ProjectSearchItem[];
   page: number;
   pageSize: number;
   total: number;
@@ -49,21 +46,21 @@ function getStatusBadgeClass(status: string): string {
   return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
 }
 
-async function fetchAnnouncementsFromApi(
+async function fetchProjectsFromApi(
   params: URLSearchParams,
-): Promise<SearchResponse> {
+): Promise<ProjectSearchResponse> {
   const query = params.toString();
   const baseUrl =
     process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
   const res = await fetch(
-    `${baseUrl}/api/egp/announcements/search?${query}`,
+    `${baseUrl}/api/egp/projects/search?${query}`,
     {
       cache: "no-store",
     },
   );
 
   if (!res.ok) {
-    throw new Error("ไม่สามารถดึงข้อมูลประกาศจากฐานข้อมูลได้");
+    throw new Error("ไม่สามารถดึงข้อมูลโครงการจากฐานข้อมูลได้");
   }
 
   return res.json();
@@ -91,8 +88,8 @@ export default async function AnnouncementsPage({
     params.set("page", resolvedSearchParams.page);
   }
 
-  const data = await fetchAnnouncementsFromApi(params);
-  const announcements = data.items;
+  const data = await fetchProjectsFromApi(params);
+  const projects = data.items;
   const currentPage = data.page;
   const totalPages = data.totalPages;
 
@@ -120,8 +117,8 @@ export default async function AnnouncementsPage({
           </h1>
           <div className="space-y-2">
             <p className="text-sm text-slate-600 sm:text-base">
-              เก็บข้อมูลประกาศจากระบบ e-GP ของหน่วยงาน ตั้งแต่วันที่เริ่มใช้งาน RSS
-              สามารถค้นหาย้อนหลังได้ตลอดเวลา
+              เก็บข้อมูลโครงการและประกาศจากระบบ e-GP ของหน่วยงาน
+              ตั้งแต่วันที่เริ่มใช้งาน RSS สามารถค้นหาย้อนหลังได้ตลอดเวลา
             </p>
             <IngestButton />
           </div>
@@ -139,7 +136,7 @@ export default async function AnnouncementsPage({
                 htmlFor="q"
                 className="block text-xs font-medium text-slate-600"
               >
-                คีย์เวิร์ด (ชื่อโครงการ / รายละเอียด)
+                คีย์เวิร์ด (ชื่อโครงการ / เลขที่ / วิธีการ / สถานะ)
               </label>
               <input
                 id="q"
@@ -225,9 +222,9 @@ export default async function AnnouncementsPage({
           </p>
         </section>
 
-        {announcements.length === 0 ? (
+        {projects.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-6 text-sm text-slate-600">
-            ยังไม่มีข้อมูลประกาศที่ตรงกับเงื่อนไขที่ค้นหา
+            ยังไม่มีข้อมูลโครงการที่ตรงกับเงื่อนไขที่ค้นหา
           </div>
         ) : (
           <div className="space-y-3 text-xs text-slate-600">
@@ -236,19 +233,20 @@ export default async function AnnouncementsPage({
               <span className="font-semibold text-emerald-600">
                 {data.total}
               </span>{" "}
-              รายการ แสดงหน้า{" "}
+              โครงการ แสดงหน้า{" "}
               <span className="font-semibold text-slate-900">
                 {data.page} / {data.totalPages}
               </span>
             </p>
             <ul className="space-y-4">
-              {announcements.map((item) => (
-                <li key={item.id}>
-                  {item.projectNumber ? (
+              {projects.map((item) => {
+                const detailHref = `/egp/announcements/${encodeURIComponent(
+                  item.projectNumber ?? item.id,
+                )}`;
+                return (
+                  <li key={item.id}>
                     <Link
-                      href={`/egp/announcements/${encodeURIComponent(
-                        item.projectNumber,
-                      )}`}
+                      href={detailHref}
                       className="block rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-emerald-400/60 hover:bg-emerald-50/40"
                     >
                       <div className="flex flex-col gap-2">
@@ -265,18 +263,14 @@ export default async function AnnouncementsPage({
                               {item.status}
                             </span>
                           ) : (
-                            item.publishedAt && (
-                              <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                                {new Date(item.publishedAt).toLocaleString("th-TH")}
-                              </span>
-                            )
+                            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                              อัปเดตล่าสุด{" "}
+                              {new Date(item.updatedAt).toLocaleString("th-TH")}
+                            </span>
                           )}
                         </div>
 
-                        {(item.projectNumber ||
-                          item.methodId ||
-                          item.announceType ||
-                          item.status) && (
+                        {(item.projectNumber || item.methodId) && (
                           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
                             {item.projectNumber && (
                               <span>
@@ -298,74 +292,9 @@ export default async function AnnouncementsPage({
                         )}
                       </div>
                     </Link>
-                  ) : (
-                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
-                      <div className="flex flex-col gap-2">
-                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                          <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
-                            {item.title}
-                          </h2>
-                          {item.status ? (
-                            <span
-                              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
-                                item.status,
-                              )}`}
-                            >
-                              {item.status}
-                            </span>
-                          ) : (
-                            item.publishedAt && (
-                              <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                                {new Date(item.publishedAt).toLocaleString("th-TH")}
-                              </span>
-                            )
-                          )}
-                        </div>
-
-                        {(item.projectNumber ||
-                          item.methodId ||
-                          item.announceType ||
-                          item.status) && (
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
-                            {item.projectNumber && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  เลขที่โครงการ:
-                                </span>{" "}
-                                {item.projectNumber}
-                              </span>
-                            )}
-                            {item.methodId && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  วิธีการจัดหา:
-                                </span>{" "}
-                                {item.methodId}
-                              </span>
-                            )}
-                            {item.announceType && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  ประเภทประกาศ:
-                                </span>{" "}
-                                {item.announceType}
-                              </span>
-                            )}
-                            {item.status && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  สถานะโครงการ:
-                                </span>{" "}
-                                {item.status}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
 
             {totalPages > 1 && (

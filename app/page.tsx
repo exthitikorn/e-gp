@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getLandingStats } from "@/lib/egpLandingStats";
 
 function isRssWindowOpenInBangkok(date: Date): boolean {
   const utcHour = date.getUTCHours();
@@ -15,9 +16,14 @@ function isRssWindowOpenInBangkok(date: Date): boolean {
   return afterOpen || beforeClose;
 }
 
-export default function Home() {
+function formatStat(value: number): string {
+  return value.toLocaleString("th-TH");
+}
+
+export default async function Home() {
   const now = new Date();
   const isRssOpen = isRssWindowOpenInBangkok(now);
+  const stats = await getLandingStats();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
@@ -143,10 +149,10 @@ export default function Home() {
                   ประกาศจัดซื้อใหม่
                 </p>
                 <p className="text-lg font-semibold text-slate-900 sm:text-xl">
-                  -
+                  {formatStat(stats.newAnnouncementsCount)}
                 </p>
                 <p className="text-[11px] text-emerald-600">
-                  ข้อมูลจะดึงจากระบบจริง
+                  รายการใน 7 วันล่าสุด (จาก EgpAnnouncement)
                 </p>
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
@@ -154,10 +160,10 @@ export default function Home() {
                   ใกล้ปิดรับข้อเสนอ
                 </p>
                 <p className="text-lg font-semibold text-slate-900 sm:text-xl">
-                  -
+                  {formatStat(stats.closingSoonCount)}
                 </p>
                 <p className="text-[11px] text-sky-600">
-                  ข้อมูลจะดึงจากระบบจริง
+                  โครงการที่ bidDate ใน 14 วันถัดไป
                 </p>
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
@@ -165,10 +171,10 @@ export default function Home() {
                   สัญญาที่กำลังดำเนินงาน
                 </p>
                 <p className="text-lg font-semibold text-slate-900 sm:text-xl">
-                  -
+                  {formatStat(stats.activeContractsCount)}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  ข้อมูลจะดึงจากระบบจริง
+                  โครงการมีผู้ชนะ (winnerName) ยังไม่ยกเลิก
                 </p>
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
@@ -176,14 +182,18 @@ export default function Home() {
                   แจ้งเตือน
                 </p>
                 <p className="text-lg font-semibold text-amber-500 sm:text-xl">
-                  -
+                  {formatStat(stats.alertsCount)}
                 </p>
                 <p className="text-[11px] text-amber-600">
-                  ข้อมูลจะดึงจากระบบจริง
+                  โครงการที่ใกล้ถึงวันยื่นข้อเสนอ
                 </p>
               </div>
             </div>
 
+            <p className="mt-3 text-center text-[11px] text-slate-500">
+              ในระบบ: โครงการ {formatStat(stats.totalProjectsCount)} รายการ •
+              ประกาศ {formatStat(stats.totalAnnouncementsCount)} รายการ
+            </p>
             <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
               <div>
                 <p className="font-medium text-slate-900">
