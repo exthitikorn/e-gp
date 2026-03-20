@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## e-gp (Next.js + Prisma + MySQL)
+แอปสำหรับ “เก็บข้อมูลโครงการและประกาศ” จากระบบ e-GP (ผ่าน RSS) แล้วจัดเก็บลงฐานข้อมูลเพื่อค้นหาและดูรายละเอียดย้อนหลังได้
 
-## Getting Started
+หน้าเว็บหลัก:
+- รายการโครงการและประกาศ: `/egp/announcements`
+- รายละเอียดโครงการ: `/egp/announcements/[projectId]`
 
-First, run the development server:
+## ฟีเจอร์หลัก
+- Ingest ข้อมูลจาก e-GP RSS (ทุกประเภทประกาศที่กำหนดในโค้ด)
+- อัปเดต/เพิ่มข้อมูลแบบ upsert และ parse PDF แบบ best-effort
+- ค้นหาโครงการ/ประกาศด้วย keyword และตัวกรองต่างๆ ผ่าน API
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## เทคโนโลยี
+- Next.js 16 (App Router)
+- Prisma Client + MySQL
+- TailwindCSS
+
+## Prerequisites
+- Node.js
+- MySQL (รองรับ Prisma schema)
+
+## ตั้งค่า Environment (`.env`)
+สร้างไฟล์ `.env` ที่รากโปรเจกต์ (ระดับเดียวกับ `package.json`) โดยอย่างน้อยควรมี:
+
+```env
+DATABASE_URL="mysql://USER:PASSWORD@localhost:3306/e-gp"
+EGP_DEPTSUB_ID="310000110000331"
+EGP_DEPT_ID="..."              # ใช้สร้าง URL ของ RSS
+NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+
+# ไม่ใส่ก็ได้ (แต่ endpoint จะไม่กันการเรียกอัตโนมัติ)
+# ถ้าใส่ ต้องส่ง token ในการเรียก ingest
+# EGP_INGEST_SECRET="YOUR_SECRET_HERE"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+หมายเหตุด้านความปลอดภัย:
+- `EGP_INGEST_SECRET` เป็นความลับ ห้าม commit ไฟล์ `.env` ขึ้น Git
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ติดตั้งและรันโปรเจกต์ (Local)
+```bash
+npm install
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# สร้าง/อัปเดต schema
+npm run prisma:migrate
 
-## Learn More
+# เริ่ม dev server
+npm run dev
+```
+เปิดเว็บที่ `http://localhost:3000`
 
-To learn more about Next.js, take a look at the following resources:
+## การใช้งาน Ingest
+1. เข้า `/egp/announcements`
+2. กดปุ่ม `ดึงข้อมูลจาก e-GP`
+3. ระบบจะยิง `GET /api/egp/announcements/ingest` และแสดงผลจำนวน `created/updated`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> ถ้า `EGP_INGEST_SECRET` ถูกตั้งไว้ ระบบจะตรวจสอบ `token` ที่ส่งมาด้วยใน query string
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## ตั้งเวลา Ingest อัตโนมัติ (Cron)
+ดูรายละเอียดได้ที่ไฟล์นี้ในโปรเจกต์:
+- `คู่มือตั้งเวลา Ingest e-GP อัตโนมัติ.md`
 
-## Deploy on Vercel
+สรุปแนวคิด:
+- เรียก `GET /api/egp/announcements/ingest` วันละ 2 ครั้ง
+- ถ้าตั้ง `EGP_INGEST_SECRET` จะต้องใส่ `?token=...`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## โครงสร้างข้อมูล (Prisma)
+โมเดลหลักใน `prisma/schema.prisma`:
+- `EgpProject` (ตารางโครงการ)
+- `EgpAnnouncement` (ตารางประกาศ) เชื่อมกับ `EgpProject` ด้วย `projectId`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## API ที่ใช้งานหลัก
+- `GET /api/egp/projects/search`
+  - query: `q`, `projectNumber`, `methodId`, `status`, `page`, `pageSize`
+- `GET /api/egp/announcements/search`
+  - query: `startDate`, `endDate`, `q`, `projectNumber`, `methodId`, `status`, `page`, `pageSize`
+- `GET /api/egp/announcements/ingest`
+  - query: `token` (จำเป็นเมื่อ `EGP_INGEST_SECRET` ถูกตั้งค่า)
+- `GET /api/egp/announcements/parse-pdf?id=...`
+  - ใช้ parse/ดึงข้อมูลจากไฟล์ PDF ของ announcement ที่มีอยู่ใน DB
+- `GET /api/egp/announcements`
+  - ใช้ fetch จาก e-GP RSS แบบตรงๆ
+  - query: `deptId`, `deptsubId`, `anounceType`, `methodId`, `announceDate`
+
+## สคริปต์ที่มีในโปรเจกต์
+- `npm run dev` (Next dev)
+- `npm run build` (prisma generate + next build)
+- `npm run start` (next start)
+- `npm run prisma:migrate` (ย้าย/อัปเดต schema)
+- `npm run lint` (eslint)

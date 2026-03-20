@@ -9,18 +9,20 @@ export async function upsertAnnouncements(
   let updated = 0;
 
   for (const ann of announcements) {
-    const projectId = ann.projectNumber || ann.id;
+    const projectNumber = ann.projectNumber.trim();
+    if (!projectNumber) {
+      // best-effort: ตอนนี้ projectNumber เป็น NOT NULL ดังนั้นถ้ามีข้อมูลไม่ครบให้ข้าม record นี้
+      continue;
+    }
 
     const project = await prisma.egpProject.upsert({
-      where: { id: projectId },
+      where: { projectNumber },
       create: {
-        id: projectId,
-        projectNumber: ann.projectNumber || null,
+        projectNumber,
         title: ann.title,
         methodId: ann.methodId ?? null,
       },
       update: {
-        projectNumber: ann.projectNumber || null,
         title: ann.title,
         methodId: ann.methodId ?? null,
       },
@@ -51,9 +53,9 @@ export async function upsertAnnouncements(
       },
     });
 
-    const isNew =
-      child.createdAt.getTime() === child.updatedAt.getTime() &&
-      project.createdAt.getTime() === project.updatedAt.getTime();
+    // project.upsert จะอัปเดต `updatedAt` ทุกครั้งอยู่แล้ว ทำให้เช็คจาก project ไม่แม่น
+    // ให้ตัดสินจาก EgpAnnouncement เท่านั้น
+    const isNew = child.createdAt.getTime() === child.updatedAt.getTime();
 
     if (isNew) {
       created += 1;

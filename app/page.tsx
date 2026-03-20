@@ -20,17 +20,26 @@ function formatStat(value: number): string {
   return value.toLocaleString("th-TH");
 }
 
+function formatBaht(value: number): string {
+  return value.toLocaleString("th-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export default async function Home() {
   const now = new Date();
   const isRssOpen = isRssWindowOpenInBangkok(now);
   const stats = await getLandingStats();
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-b from-slate-50 via-white to-slate-100 text-slate-900">
+    <div className="relative min-h-screen overflow-hidden bg-linear-to-b from-slate-50 via-white to-slate-100 text-slate-900">
       {/* soft radial highlight */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.18),_transparent_55%),radial-gradient(circle_at_bottom,_rgba(45,212,191,0.12),_transparent_55%)] opacity-90"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_55%),radial-gradient(circle_at_bottom,rgba(45,212,191,0.12),transparent_55%)] opacity-90"
       />
 
       <main className="relative mx-auto flex min-h-screen max-w-7xl flex-col gap-14 px-6 pb-16 pt-10 md:gap-20 md:px-10 md:pb-24 md:pt-14 lg:flex-row lg:items-center">
@@ -52,7 +61,7 @@ export default async function Home() {
           <div className="space-y-6">
             <h1 className="text-balance text-3xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
               ศูนย์กลางโครงการจัดซื้อจัดจ้าง
-              <span className="block bg-gradient-to-r from-cyan-500 via-emerald-500 to-sky-500 bg-clip-text text-transparent">
+              <span className="block bg-linear-to-r from-cyan-500 via-emerald-500 to-sky-500 bg-clip-text text-transparent">
                 โรงพยาบาลราชพิพัฒน์
               </span>
             </h1>
@@ -66,7 +75,7 @@ export default async function Home() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <Link
               href="/egp/announcements"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 via-emerald-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_45px_-18px_rgba(34,197,94,0.65)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_-22px_rgba(34,197,94,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 md:text-base"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-cyan-500 via-emerald-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_45px_-18px_rgba(34,197,94,0.65)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_-22px_rgba(34,197,94,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 md:text-base"
             >
               ดูโครงการจัดซื้อจัดจ้างของโรงพยาบาล
               <span aria-hidden className="text-base">
@@ -146,24 +155,24 @@ export default async function Home() {
             <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                  ประกาศจัดซื้อใหม่
+                  จำนวนโครงการทั้งหมด
                 </p>
                 <p className="text-lg font-semibold text-slate-900 sm:text-xl">
-                  {formatStat(stats.newAnnouncementsCount)}
+                  {formatStat(stats.totalProjectsCount)}
                 </p>
-                <p className="text-[11px] text-emerald-600">
-                  รายการใน 7 วันล่าสุด (จาก EgpAnnouncement)
+                <p className="text-[11px] text-slate-600">
+                  รวมทุกโครงการในระบบ
                 </p>
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                  ใกล้ปิดรับข้อเสนอ
+                  ประหยัดได้เท่าไหร่
                 </p>
                 <p className="text-lg font-semibold text-slate-900 sm:text-xl">
-                  {formatStat(stats.closingSoonCount)}
+                  {formatBaht(stats.savingsBahtTotal)}
                 </p>
-                <p className="text-[11px] text-sky-600">
-                  โครงการที่ bidDate ใน 14 วันถัดไป
+                <p className="text-[11px] text-emerald-600">
+                  ประมาณการจากราคากลาง vs ราคาผู้ชนะ
                 </p>
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
@@ -174,18 +183,18 @@ export default async function Home() {
                   {formatStat(stats.activeContractsCount)}
                 </p>
                 <p className="text-[11px] text-slate-500">
-                  โครงการมีผู้ชนะ (winnerName) ยังไม่ยกเลิก
+                  โครงการที่ประกาศผู้ชนะการเสนอราคา
                 </p>
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
-                  แจ้งเตือน
+                  แจ้งเตือนใกล้ถึงวันเสนอราคา
                 </p>
                 <p className="text-lg font-semibold text-amber-500 sm:text-xl">
                   {formatStat(stats.alertsCount)}
                 </p>
                 <p className="text-[11px] text-amber-600">
-                  โครงการที่ใกล้ถึงวันยื่นข้อเสนอ
+                  โครงการที่ bidDate อยู่ใน 3 วันถัดไป
                 </p>
               </div>
             </div>

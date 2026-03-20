@@ -8,8 +8,8 @@ datasource db {
 }
 
 model EgpProject {
-  id                     String   @id @db.VarChar(191)
-  projectNumber          String?  @db.VarChar(191)
+  id                     String   @id @default(cuid()) @db.VarChar(191)
+  projectNumber          String   @unique @db.VarChar(191)
   title                  String   @db.VarChar(512)
   methodId               String?  @db.VarChar(191)
   centralPriceBaht       Decimal? @db.Decimal(15, 2)
@@ -23,7 +23,6 @@ model EgpProject {
 
   announcements EgpAnnouncement[]
 
-  @@index([projectNumber])
   @@index([title])
 }
 

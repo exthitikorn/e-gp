@@ -1,4 +1,5 @@
 import prisma from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 /** จำนวนวันย้อนหลังสำหรับนับ "ประกาศจัดซื้อใหม่" */
 const NEW_ANNOUNCEMENT_DAYS = 7;
@@ -9,6 +10,11 @@ const CLOSING_SOON_DAYS = 14;
 /** จำนวนวันในอนาคตที่ถือว่า "แจ้งเตือน" (bidDate ใกล้มาก) */
 const ALERT_DAYS = 3;
 
+function decimalToNumber(value: Prisma.Decimal | null): number {
+  if (!value) return 0;
+  return value.toNumber();
+}
+
 export interface LandingStats {
   /** ประกาศจัดซื้อใหม่ (publishedAt ใน 7 วันล่าสุด) */
   newAnnouncementsCount: number;
@@ -18,6 +24,8 @@ export interface LandingStats {
   activeContractsCount: number;
   /** แจ้งเตือน: โครงการที่ bidDate อยู่ใน 3 วันถัดไป */
   alertsCount: number;
+  /** ประหยัดได้ทั้งหมด (ประมาณการ): sum(centralPriceBaht - winnerAmountBaht) */
+  savingsBahtTotal: number;
   /** จำนวนโครงการทั้งหมด */
   totalProjectsCount: number;
   /** จำนวนประกาศทั้งหมด */
@@ -39,11 +47,19 @@ export async function getLandingStats(): Promise<LandingStats> {
   const alertEnd = new Date(todayStart);
   alertEnd.setUTCDate(alertEnd.getUTCDate() + ALERT_DAYS);
 
+  const activeSavingsWhere = {
+    winnerName: { not: null },
+    cancelDate: null,
+    centralPriceBaht: { not: null },
+    winnerAmountBaht: { not: null },
+  } as const;
+
   const [
     newAnnouncementsCount,
     closingSoonCount,
     activeContractsCount,
     alertsCount,
+    savingsBahtTotal,
     totalProjectsCount,
     totalAnnouncementsCount,
   ] = await Promise.all([
@@ -73,6 +89,19 @@ export async function getLandingStats(): Promise<LandingStats> {
         cancelDate: null,
       },
     }),
+    (async () => {
+      const aggregate = await prisma.egpProject.aggregate({
+        where: activeSavingsWhere,
+        _sum: {
+          centralPriceBaht: true,
+          winnerAmountBaht: true,
+        },
+      });
+
+      const centralSum = decimalToNumber(aggregate._sum.centralPriceBaht);
+      const winnerSum = decimalToNumber(aggregate._sum.winnerAmountBaht);
+      return centralSum - winnerSum;
+    })(),
     prisma.egpProject.count(),
     prisma.egpAnnouncement.count(),
   ]);
@@ -82,6 +111,7 @@ export async function getLandingStats(): Promise<LandingStats> {
     closingSoonCount,
     activeContractsCount,
     alertsCount,
+    savingsBahtTotal,
     totalProjectsCount,
     totalAnnouncementsCount,
   };

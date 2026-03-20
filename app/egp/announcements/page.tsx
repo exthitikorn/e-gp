@@ -112,6 +112,14 @@ export default async function AnnouncementsPage({
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 space-y-2">
+          <div className="text-sm text-slate-500">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800"
+            >
+              ← กลับหน้า landing
+            </Link>
+          </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             โครงการจัดซื้อจัดจ้าง
           </h1>
@@ -240,9 +248,12 @@ export default async function AnnouncementsPage({
             </p>
             <ul className="space-y-4">
               {projects.map((item) => {
-                const detailHref = `/egp/announcements/${encodeURIComponent(
+                const detailBaseHref = `/egp/announcements/${encodeURIComponent(
                   item.projectNumber ?? item.id,
                 )}`;
+                const detailHref = formKey
+                  ? `${detailBaseHref}?${formKey}`
+                  : detailBaseHref;
                 return (
                   <li key={item.id}>
                     <Link
@@ -345,7 +356,7 @@ export default async function AnnouncementsPage({
                         key={page}
                         href={createPageLink(page)}
                         aria-current={page === currentPage ? "page" : undefined}
-                        className={`min-w-[2.25rem] rounded-full px-2 py-1 text-center text-xs font-medium ${
+                        className={`min-w-9 rounded-full px-2 py-1 text-center text-xs font-medium ${
                           page === currentPage
                             ? "bg-emerald-500 text-white"
                             : "border border-slate-300 text-slate-700 hover:border-emerald-400 hover:text-emerald-700"

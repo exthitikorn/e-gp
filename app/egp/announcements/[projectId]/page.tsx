@@ -17,10 +17,19 @@ function getStatusBadgeClass(status: string): string {
   return "bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200";
 }
 
+type SearchParams = {
+  q?: string;
+  page?: string;
+  projectNumber?: string;
+  methodId?: string;
+  status?: string;
+};
+
 interface ProjectDetailPageProps {
   params: Promise<{
     projectId: string;
   }>;
+  searchParams?: Promise<SearchParams>;
 }
 
 interface ProjectDetailResponse {
@@ -64,9 +73,33 @@ async function fetchProjectDetail(
 
 export default async function ProjectDetailPage({
   params,
+  searchParams,
 }: ProjectDetailPageProps) {
   const resolvedParams = await params;
   const projectId = resolvedParams.projectId;
+
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const backParams = new URLSearchParams();
+
+  if (resolvedSearchParams.q) {
+    backParams.set("q", resolvedSearchParams.q);
+  }
+  if (resolvedSearchParams.projectNumber) {
+    backParams.set("projectNumber", resolvedSearchParams.projectNumber);
+  }
+  if (resolvedSearchParams.methodId) {
+    backParams.set("methodId", resolvedSearchParams.methodId);
+  }
+  if (resolvedSearchParams.status) {
+    backParams.set("status", resolvedSearchParams.status);
+  }
+  if (resolvedSearchParams.page) {
+    backParams.set("page", resolvedSearchParams.page);
+  }
+
+  const backHref = backParams.toString()
+    ? `/egp/announcements?${backParams.toString()}`
+    : "/egp/announcements";
 
   const data = await fetchProjectDetail(projectId);
 
@@ -87,17 +120,17 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
-      <div className="mx-auto max-w-4xl space-y-6">
-        <header className="space-y-2">
-          <div className="text-xs text-slate-500">
+      <div className="mx-auto max-w-5xl">
+        <header className="mb-8 space-y-2">
+          <div className="text-sm text-slate-500">
             <Link
-              href="/egp/announcements"
-              className="text-emerald-700 hover:text-emerald-800"
+              href={backHref}
+              className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800"
             >
               ← กลับไปหน้ารายการโครงการ
             </Link>
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             {data.title}
           </h1>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
@@ -145,7 +178,7 @@ export default async function ProjectDetailPage({
           </div>
         </header>
 
-        <section className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-xs text-slate-700 shadow-sm sm:p-6">
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white/90 p-4 text-xs text-slate-700 shadow-sm sm:p-6">
           <h2 className="mb-3 text-sm font-semibold text-slate-900">
             ข้อมูลโครงการ
           </h2>

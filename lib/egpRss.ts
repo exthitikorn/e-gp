@@ -1,3 +1,5 @@
+import { createHash } from "crypto";
+
 export type EgpAnnounceType =
   | "P0"
   | "15"
@@ -96,10 +98,11 @@ function ensureArray<T>(value: T | T[] | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-function extractProjectNumber(description: string): string {
+function extractProjectNumber(description: string): string | null {
   const match = description.match(/เลขที่โครงการ[:\s]+([^\s<]+)/u);
   if (match && match[1]) {
-    return match[1].trim();
+    const projectNumber = match[1].trim();
+    return projectNumber ? projectNumber : null;
   }
 
   // รองรับรูปแบบย่อที่เป็น comma-separated:
@@ -110,10 +113,11 @@ function extractProjectNumber(description: string): string {
     .filter(Boolean);
 
   if (parts.length >= 1 && parts[0]) {
-    return parts[0];
+    const projectNumber = parts[0].trim();
+    return projectNumber ? projectNumber : null;
   }
 
-  return "";
+  return null;
 }
 
 function extractMethod(description: string): string | null {
@@ -195,15 +199,50 @@ export function mapRssToAnnouncements(parsed: ParsedRss): EgpAnnouncement[] {
   const items = ensureArray(parsed.rss?.channel?.item);
   const channelLink = parsed.rss?.channel?.link;
 
-  return items.map((item, index) => {
+  function buildAnnouncementId(
+    projectNumber: string,
+    announceType: string,
+    link: string | undefined | null,
+    index: number,
+  ): string {
+    // เป้าหมาย: ทำให้ “โปรเจกต์ + ประเภทประกาศ” แยก record ได้ และ upsert ได้ถูก
+    // โดยไม่ให้ชนกันเพราะ projectNumber อย่างเดียว
+    const projectKey = projectNumber.trim();
+    const announceTypeKey = announceType.trim();
+
+    let idSource: string;
+    if (projectKey && announceTypeKey) {
+      idSource = `${projectKey}|${announceTypeKey}`;
+    } else if (link && /^https?:\/\//i.test(link)) {
+      idSource = `${link}|${announceTypeKey}`;
+    } else {
+      idSource = `egp-item-${index}|${projectKey}|${announceTypeKey}`;
+    }
+
+    const hash = createHash("sha256").update(idSource).digest("hex");
+    return `ann-${hash}`;
+  }
+
+  const results: EgpAnnouncement[] = [];
+
+  for (const [index, item] of items.entries()) {
     const rawDescription = item.description ?? "";
     const projectNumber = extractProjectNumber(rawDescription);
+    if (!projectNumber) continue; // ป้องกันบันทึกโครงการที่ไม่มี projectNumber (ซึ่งตอนนี้เป็น NOT NULL)
+
     const method = extractMethod(rawDescription);
     const announceType = extractAnnounceType(rawDescription);
     const link = extractLink(rawDescription, item.link || channelLink);
 
-    return {
-      id: projectNumber || item.link || `egp-item-${index}`,
+    const id = buildAnnouncementId(
+      projectNumber,
+      announceType ?? "",
+      link,
+      index,
+    );
+
+    results.push({
+      id,
       projectNumber,
       title: item.title ?? "",
       announceType: announceType ?? "",
@@ -212,7 +251,9 @@ export function mapRssToAnnouncements(parsed: ParsedRss): EgpAnnouncement[] {
       publishedAt: parsePublishedAt(item.pubDate),
       rawDescription,
       link,
-    };
-  });
+    });
+  }
+
+  return results;
 }
 
