@@ -25,6 +25,22 @@ const THAI_DIGIT_MAP: Record<string, string> = {
   "๙": "9",
 };
 
+function normalizePdfTextPreserveLines(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    // อักขระว่างที่ไม่ใช่ newline ให้กลายเป็น space
+    .replace(/[^\S\n]+/g, " ")
+    // ตัด space ท้ายบรรทัด
+    .replace(/[ \t]+\n/g, "\n")
+    // ลดบรรทัดว่างต่อเนื่องไม่ให้ยาวเกินไป
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function toFlatText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
 function toWesternDigits(input: string): string {
   return input.replace(/[๐-๙]/g, (d) => THAI_DIGIT_MAP[d] ?? d);
 }
@@ -225,9 +241,13 @@ function extractWinnerInfo(text: string): {
   winnerName?: string;
   winnerAmountBaht?: string;
 } {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const normalizedText = toFlatText(text);
   const legalEntityPrefixRegex =
     /(ห้างหุ้นส่วนจำกัด|บริษัท(?:\s+จำกัด)?|บจก\.|หจ\.)/u;
+  const isGenericWinnerName = (name: string): boolean =>
+    /^(บริษัท|บจก\.|หจ\.|ห้างหุ้นส่วนจำกัด|บริษัท\s+จำกัด)$/u.test(
+      name.trim(),
+    );
 
   // รูปแบบชื่อผู้ชนะ/ผู้ได้รับการคัดเลือกในเอกสาร e-GP มีได้หลายแบบ เช่น:
   // - "ผู้ที่ได้รับการคัดเลือก ได้แก่ บริษัท ... โดยเสนอราคา ..."
@@ -254,6 +274,12 @@ function extractWinnerInfo(text: string): {
 
   // ถ้าได้ค่าที่สั้นผิดปกติ (เช่น "เ") ให้ถือว่าไม่ valid แล้วไป fallback
   if (winnerName && winnerName.length <= 2) {
+    winnerName = undefined;
+  }
+
+  // บางไฟล์ pdf text-flow เพี้ยนจน regex หลักจับได้แค่ "บริษัท"/"หจ."
+  // ให้ถือว่าไม่ valid แล้วไปใช้ fallback จากบริบทใกล้ยอดเงิน
+  if (winnerName && isGenericWinnerName(winnerName)) {
     winnerName = undefined;
   }
 
@@ -295,6 +321,28 @@ function extractWinnerInfo(text: string): {
     }
   }
 
+  // fallback เพิ่มเติม: ดึงชื่อจากช่วง "เสนอราคาเป็นเงินทั้งสิ้น (... <ชื่อ> <ยอดเงิน> บาท ...)"
+  // รองรับเคสที่คำว่า "บริษัท" ไปโผล่อีกตำแหน่งหนึ่งจากการแปลง PDF
+  if (!winnerName || isGenericWinnerName(winnerName)) {
+    const amountContextPatterns: RegExp[] = [
+      /\(\s*([^()]{2,140}?(?:จำกัด|มหาชน|ห้างหุ้นส่วนจำกัด))\s+[0-9๐-๙][0-9๐-๙,\.\s]{2,40}\s*บาท/u,
+      /เสนอราคาเป็นเงินทั้งสิ้น\s*\(\s*([^()]{2,140}?(?:จำกัด|มหาชน|ห้างหุ้นส่วนจำกัด))\s+[0-9๐-๙][0-9๐-๙,\.\s]{2,40}\s*บาท/u,
+      /โดยเสนอราคา\s*([^()]{2,140}?(?:จำกัด|มหาชน|ห้างหุ้นส่วนจำกัด))\s+[0-9๐-๙][0-9๐-๙,\.\s]{2,40}\s*บาท/u,
+    ];
+
+    for (const re of amountContextPatterns) {
+      const match = normalizedText.match(re);
+      const candidate = match?.[1]?.trim();
+      if (!candidate) continue;
+
+      // เติมคำนำหน้านิติบุคคล ถ้าหลุดจาก text-flow
+      winnerName = /^(บริษัท|บจก\.|ห้างหุ้นส่วนจำกัด|หจ\.)/u.test(candidate)
+        ? candidate
+        : `บริษัท ${candidate}`;
+      break;
+    }
+  }
+
   // post-process: clean up ชื่อให้เหลือแค่ตัวชื่อจริง
   if (winnerName) {
     const legalEntityPrefixMatch = winnerName.match(legalEntityPrefixRegex);
@@ -315,8 +363,19 @@ function extractWinnerInfo(text: string): {
     // 2) ตัดคำอธิบายในวงเล็บท้ายชื่อ เช่น "(ขายส่ง,ขายปลีก,ให้บริการ,ผู้ผลิต)"
     winnerName = winnerName.replace(/\s*\([^)]*\)\s*$/u, "").trim();
 
+    // 3) ตัดคำสรุปเชิงเปรียบเทียบ/จัดอันดับที่ไม่ใช่ส่วนหนึ่งของชื่อนิติบุคคล
+    // ตัวอย่าง: "บริษัท ... จำกัด รวมสูงสุด" -> "บริษัท ... จำกัด"
+    winnerName = winnerName
+      .replace(/\s+รวมสูงสุด$/u, "")
+      .replace(/\s+รวมต่ำสุด$/u, "")
+      .replace(/\s+ราคาต่ำสุด$/u, "")
+      .replace(/\s+ต่ำสุด$/u, "")
+      .replace(/\s+สูงสุด$/u, "")
+      .replace(/\s+สุด$/u, "")
+      .trim();
+
     // กันกรณีพังจนเหลือสั้นเกินไป
-    if (winnerName.length <= 1) {
+    if (winnerName.length <= 1 || isGenericWinnerName(winnerName)) {
       winnerName = undefined;
     }
   }
@@ -328,7 +387,7 @@ function extractWinnerInfo(text: string): {
 }
 
 function parseCancelAnnouncement(text: string): EgpPdfParsedFields {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const normalizedText = toFlatText(normalizePdfTextPreserveLines(text));
 
   // ระบุวันที่ยกเลิกจากบรรทัด "ประกาศ ณ วันที่ ..."
   let cancelDate: string | undefined;
@@ -364,9 +423,10 @@ function parseCancelAnnouncement(text: string): EgpPdfParsedFields {
 }
 
 function parseInviteAnnouncement(text: string): EgpPdfParsedFields {
-  // pdf-parse อาจมี newline/ช่องว่างแปลก ๆ ระหว่างคำ
-  // ทำให้ regex จับยากขึ้น เรา normalize ให้เป็น space เดียว
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  // รักษาโครงบรรทัดก่อน แล้วค่อย flatten เฉพาะตอนทำ regex
+  // จะช่วยลดปัญหาข้อความ "บรรทัดเพี้ยน" จากการยุบทุก whitespace ทันที
+  const linePreservedText = normalizePdfTextPreserveLines(text);
+  const normalizedText = toFlatText(linePreservedText);
 
   const dates = extractAllThaiDates(normalizedText);
   const rawBidDate = dates[0];
@@ -380,7 +440,7 @@ function parseInviteAnnouncement(text: string): EgpPdfParsedFields {
 }
 
 function parseWinnerAnnouncement(text: string): EgpPdfParsedFields {
-  const normalizedText = text.replace(/\s+/g, " ").trim();
+  const normalizedText = toFlatText(normalizePdfTextPreserveLines(text));
   const { winnerName, winnerAmountBaht } = extractWinnerInfo(normalizedText);
 
   return {
