@@ -2,11 +2,24 @@ import prisma from "@/lib/db";
 import type { EgpAnnouncement as RssAnnouncement } from "@/lib/egpRss";
 import { parsePdfForAnnouncement } from "@/lib/egpAnnouncementPdfIngest";
 
+export interface IngestTypeStats {
+  created: number;
+  updated: number;
+  total: number;
+}
+
+export interface UpsertAnnouncementsResult {
+  created: number;
+  updated: number;
+  byAnnounceType: Record<string, IngestTypeStats>;
+}
+
 export async function upsertAnnouncements(
   announcements: RssAnnouncement[],
-): Promise<{ created: number; updated: number }> {
+): Promise<UpsertAnnouncementsResult> {
   let created = 0;
   let updated = 0;
+  const byAnnounceType: Record<string, IngestTypeStats> = {};
 
   for (const ann of announcements) {
     const projectNumber = ann.projectNumber.trim();
@@ -56,9 +69,19 @@ export async function upsertAnnouncements(
     // project.upsert จะอัปเดต `updatedAt` ทุกครั้งอยู่แล้ว ทำให้เช็คจาก project ไม่แม่น
     // ให้ตัดสินจาก EgpAnnouncement เท่านั้น
     const isNew = child.createdAt.getTime() === child.updatedAt.getTime();
+    const announceTypeKey = (child.announceType || "ไม่ระบุประเภท").trim();
+    if (!byAnnounceType[announceTypeKey]) {
+      byAnnounceType[announceTypeKey] = {
+        created: 0,
+        updated: 0,
+        total: 0,
+      };
+    }
+    byAnnounceType[announceTypeKey].total += 1;
 
     if (isNew) {
       created += 1;
+      byAnnounceType[announceTypeKey].created += 1;
 
       if (child.link && /^https?:\/\//i.test(child.link)) {
         try {
@@ -74,6 +97,7 @@ export async function upsertAnnouncements(
       }
     } else {
       updated += 1;
+      byAnnounceType[announceTypeKey].updated += 1;
 
       // เมื่อมีการอัปเดต: re-parse อัตโนมัติสำหรับประเภทที่ต้องการ sync ข้อมูลจาก e-GP
       // - ประกาศยกเลิกประกาศเชิญชวน: sync สถานะโครงการ/วันที่ยกเลิก
@@ -106,6 +130,6 @@ export async function upsertAnnouncements(
     }
   }
 
-  return { created, updated };
+  return { created, updated, byAnnounceType };
 }
 

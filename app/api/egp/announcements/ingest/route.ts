@@ -13,6 +13,14 @@ interface IngestResult {
   created: number;
   updated: number;
   totalFromRss: number;
+  byAnnounceType: Record<
+    string,
+    {
+      created: number;
+      updated: number;
+      total: number;
+    }
+  >;
   error?: string;
 }
 
@@ -89,6 +97,7 @@ export async function GET(request: Request) {
         created: 0,
         updated: 0,
         totalFromRss: 0,
+        byAnnounceType: {},
         error: "Unauthorized",
       };
       return NextResponse.json(payload, { status: 401 });
@@ -103,18 +112,21 @@ export async function GET(request: Request) {
         created: 0,
         updated: 0,
         totalFromRss: 0,
+        byAnnounceType: {},
         error: "No announcements in RSS response",
       };
 
       return NextResponse.json(payload, { status: 200 });
     }
 
-    const { created, updated } = await upsertAnnouncements(announcements);
+    const { created, updated, byAnnounceType } =
+      await upsertAnnouncements(announcements);
 
     const payload: IngestResult = {
       created,
       updated,
       totalFromRss: announcements.length,
+      byAnnounceType,
     };
 
     return NextResponse.json(payload, { status: 200 });
@@ -123,6 +135,7 @@ export async function GET(request: Request) {
       created: 0,
       updated: 0,
       totalFromRss: 0,
+      byAnnounceType: {},
       error: error instanceof Error ? error.message : "Unknown error",
     };
 
