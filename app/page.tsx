@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { getLandingStats } from "@/lib/egpLandingStats";
 
+/** ดึงสถิติจาก DB ทุกครั้งที่โหลดหน้า — ไม่แคชแบบ static หลัง build */
+export const dynamic = "force-dynamic";
+
 function isRssWindowOpenInBangkok(date: Date): boolean {
   const utcHour = date.getUTCHours();
   const utcMinute = date.getUTCMinutes();

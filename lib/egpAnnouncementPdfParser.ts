@@ -187,11 +187,47 @@ function extractPriceBaht(text: string): string | undefined {
   return undefined;
 }
 
+function extractWinnerAmountBaht(text: string): string | undefined {
+  // ราคา "ที่ชนะจริง" ควรยึดจากบริบทรอบคำว่าเสนอราคา/เป็นเงินทั้งสิ้น
+  // และต้องตัดกรณีที่เป็น "ต่ำกว่าเงินงบประมาณ" ออก
+  const prioritizedPatterns: RegExp[] = [
+    /เสนอราคา(?:เป็นเงิน)?ทั้งสิ้น\s*([0-9๐-๙][0-9๐-๙,\.\s]*)\s*บาท/u,
+    /โดยเสนอราคา\s*([0-9๐-๙][0-9๐-๙,\.\s]*)\s*บาท/u,
+    /เป็นเงินทั้งสิ้น\s*([0-9๐-๙][0-9๐-๙,\.\s]*)\s*บาท/u,
+  ];
+
+  for (const re of prioritizedPatterns) {
+    const match = text.match(re);
+    if (!match?.[1]) continue;
+
+    const normalized = normalizeBahtNumber(match[1]);
+    const digitsOnly = normalized.replace(/\D/g, "");
+    if (digitsOnly.length < 4) continue;
+    return normalized;
+  }
+
+  // fallback: เลือกจำนวนเงิน "ก่อน" ข้อความต่ำกว่างบประมาณ
+  // เพื่อกันการจับค่าประหยัดงบมาเป็นมูลค่าที่จัดหาได้
+  const lowerBudgetAnchorRegex = /ต่ำกว่าเงินงบประมาณ/u;
+  const anchorMatch = text.match(lowerBudgetAnchorRegex);
+
+  if (anchorMatch && anchorMatch.index !== undefined) {
+    const prefixText = text.slice(0, anchorMatch.index);
+    const fallback = extractPriceBaht(prefixText);
+    if (fallback) return fallback;
+  }
+
+  // fallback สุดท้าย ใช้ logic เดิม
+  return extractPriceBaht(text);
+}
+
 function extractWinnerInfo(text: string): {
   winnerName?: string;
   winnerAmountBaht?: string;
 } {
   const normalizedText = text.replace(/\s+/g, " ").trim();
+  const legalEntityPrefixRegex =
+    /(ห้างหุ้นส่วนจำกัด|บริษัท(?:\s+จำกัด)?|บจก\.|หจ\.)/u;
 
   // รูปแบบชื่อผู้ชนะ/ผู้ได้รับการคัดเลือกในเอกสาร e-GP มีได้หลายแบบ เช่น:
   // - "ผู้ที่ได้รับการคัดเลือก ได้แก่ บริษัท ... โดยเสนอราคา ..."
@@ -203,8 +239,8 @@ function extractWinnerInfo(text: string): {
     /ผู้เสนอราคาที่ชนะการเสนอราคา\s+ได้แก่\s+(.+?)\s*ซึ่งเป็น\s*ผู้เสนอราคา(?:\s*ต่ำสุด)?/u,
     // เผื่อเคสมีคำอื่นตามหลัง เช่น "โดยเสนอราคา"
     /ผู้เสนอราคาที่ชนะการเสนอราคา\s+ได้แก่\s+(.+?)\s*(?:โดยเสนอราคา|ซึ่งเป็น|ที่เป็นผู้เสนอราคา)/u,
-    // วิธีเฉพาะเจาะจง: "ผู้ได้รับการคัดเลือก ได้แก่ ... โดยเสนอราคา/ซึ่งเป็นผู้เสนอราคา"
-    /ผู้ได้รับการคัดเลือก\s+ได้แก่\s+(.+?)\s*(?:โดยเสนอราคา|ซึ่งเป็น\s*ผู้เสนอราคา)?/u,
+    // วิธีเฉพาะเจาะจง: ต้องมี delimiter ท้ายเพื่อกันจับข้อความกว้าง/สั้นผิดตำแหน่ง
+    /ผู้ได้รับการคัดเลือก\s+ได้แก่\s+(.+?)\s+(?:โดยเสนอราคา|ซึ่งเป็น\s*ผู้เสนอราคา|เสนอราคาเป็นเงินทั้งสิ้น|เป็นเงินทั้งสิ้น)/u,
   ];
 
   let winnerName: string | undefined;
@@ -219,6 +255,15 @@ function extractWinnerInfo(text: string): {
   // ถ้าได้ค่าที่สั้นผิดปกติ (เช่น "เ") ให้ถือว่าไม่ valid แล้วไป fallback
   if (winnerName && winnerName.length <= 2) {
     winnerName = undefined;
+  }
+
+  // ถ้าชื่อที่จับได้มีข้อความนำหน้า (เช่น "๖๒ รายการ ... บริษัท ...")
+  // ให้ตัดเริ่มจากคำนำหน้าของนิติบุคคล
+  if (winnerName) {
+    const legalEntityPrefixMatch = winnerName.match(legalEntityPrefixRegex);
+    if (legalEntityPrefixMatch && legalEntityPrefixMatch.index !== undefined) {
+      winnerName = winnerName.slice(legalEntityPrefixMatch.index).trim();
+    }
   }
 
   // ถ้ายังหาไม่เจอ ลองหาใกล้ ๆ คำหลัก แล้วดึงชื่อให้ฉลาดขึ้น
@@ -252,6 +297,11 @@ function extractWinnerInfo(text: string): {
 
   // post-process: clean up ชื่อให้เหลือแค่ตัวชื่อจริง
   if (winnerName) {
+    const legalEntityPrefixMatch = winnerName.match(legalEntityPrefixRegex);
+    if (legalEntityPrefixMatch && legalEntityPrefixMatch.index !== undefined) {
+      winnerName = winnerName.slice(legalEntityPrefixMatch.index).trim();
+    }
+
     // 1) ถ้ามีคำขึ้นต้นแบบนิติบุคคล ให้ตัดส่วนเกินหลังคำสำคัญออก
     const orgMatch = winnerName.match(
       /(ห้างหุ้นส่วนจำกัด|บริษัท(?:\s+จำกัด)?|บจก\.|หจ\.)\s+(.+?)(?:\s+(ผู้เสนอราคา|ซึ่งเป็น|โดยเสนอราคา|เสนอราคาเป็นเงินทั้งสิ้น|เป็นเงินทั้งสิ้น)|$)/u,
@@ -271,8 +321,8 @@ function extractWinnerInfo(text: string): {
     }
   }
 
-  // ใช้ logic เดิมสำหรับ "เป็นเงินทั้งสิ้น ... บาท"
-  const winnerAmountBaht = extractPriceBaht(normalizedText);
+  // แยกราคา "มูลค่าที่จัดหาได้" ออกจาก "ต่ำกว่าเงินงบประมาณ"
+  const winnerAmountBaht = extractWinnerAmountBaht(normalizedText);
 
   return { winnerName, winnerAmountBaht };
 }

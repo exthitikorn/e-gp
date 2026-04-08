@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-// import { PdfParseButton } from "../PdfParseButton";
+import { PdfParseButton } from "../PdfParseButton";
 
 function getStatusBadgeClass(status: string): string {
   const normalized = status.trim();
@@ -305,9 +305,9 @@ export default async function ProjectDetailPage({
                     <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       ลิงก์ e-GP
                     </th>
-                    {/* <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
-                      ดึงข้อมูลจาก PDF
-                    </th> */}
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
+                      อ่าน/บันทึกจากเอกสาร
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -347,7 +347,7 @@ export default async function ProjectDetailPage({
                           </span>
                         )}
                       </td>
-                      {/* <td className="px-4 py-2 align-top">
+                      <td className="px-4 py-2 align-top">
                         <PdfParseButton
                           announcementId={type.id}
                           announceType={type.announceType}
@@ -355,7 +355,7 @@ export default async function ProjectDetailPage({
                             type.link && /^https?:\/\//i.test(type.link),
                           )}
                         />
-                      </td> */}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
