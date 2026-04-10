@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # PM2 — Next.js app e-gp (production)
-APP_NAME="rpp-e-gp"
+APP_NAME="egp"
 ECOSYSTEM_CONFIG="./ecosystem.config.cjs"
 NODE_ENV="production"
 

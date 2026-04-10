@@ -7,6 +7,7 @@ import {
   EgpAnnouncement,
   ParsedRss,
   mapRssToAnnouncements,
+  rssScopeKeyFromDeptParams,
 } from "@/lib/egpRss";
 
 interface EgpApiResponse {
@@ -64,7 +65,10 @@ export async function GET(request: Request) {
 
     const parsed = parser.parse(xmlText) as ParsedRss;
     // console.log("[EGP RSS PARSED]:", parsed);
-    const announcements = mapRssToAnnouncements(parsed);
+    const scopeKey = rssScopeKeyFromDeptParams(deptId, deptsubId);
+    const announcements = mapRssToAnnouncements(parsed, {
+      rssScopeKeyForStableId: scopeKey || undefined,
+    });
 
     const payload: EgpApiResponse = {
       announcements,

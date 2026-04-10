@@ -45,18 +45,60 @@ export interface BuildEgpRssUrlParams {
   announceDate?: string;
 }
 
+/** คีย์แยก scope ของ RSS สำหรับสร้าง id ประกาศให้ไม่ชนกันระหว่างหน่วยงาน */
+export interface MapRssToAnnouncementsOptions {
+  rssScopeKeyForStableId?: string;
+}
+
+/**
+ * ตามคู่มือ RSS e-GP: ถ้ามี deptId ให้ใช้พารามิเตอร์ deptId เท่านั้น
+ * ถ้าไม่มี deptId แต่มี deptsubId ให้ใช้ deptsubId
+ */
+export function normalizeRssDeptQueryParams(params: {
+  deptId?: string | null;
+  deptsubId?: string | null;
+}): { deptId?: string; deptsubId?: string } {
+  const d = params.deptId?.trim();
+  const s = params.deptsubId?.trim();
+  if (d) {
+    return { deptId: d };
+  }
+  if (s) {
+    return { deptsubId: s };
+  }
+  return {};
+}
+
+/** สร้างคีย์สำหรับ stable id / แยกแถวหน่วยงาน (รูปแบบ d:รหัส หรือ s:รหัส) */
+export function rssScopeKeyFromDeptParams(
+  deptId?: string | null,
+  deptsubId?: string | null,
+): string {
+  const d = deptId?.trim();
+  const s = deptsubId?.trim();
+  if (d) {
+    return `d:${d}`;
+  }
+  if (s) {
+    return `s:${s}`;
+  }
+  return "";
+}
+
 const DEFAULT_EGP_RSS_BASE_URL =
   "http://process3.gprocurement.go.th/EPROCRssFeedWeb/egpannouncerss.xml";
 
 export function buildEgpRssUrl(params: BuildEgpRssUrlParams): string {
   const url = new URL(params.baseUrl ?? DEFAULT_EGP_RSS_BASE_URL);
 
-  if (params.deptId) {
-    url.searchParams.set("deptId", params.deptId);
-  }
-
-  if (params.deptsubId) {
-    url.searchParams.set("deptsubId", params.deptsubId);
+  const rssDept = normalizeRssDeptQueryParams({
+    deptId: params.deptId,
+    deptsubId: params.deptsubId,
+  });
+  if (rssDept.deptId) {
+    url.searchParams.set("deptId", rssDept.deptId);
+  } else if (rssDept.deptsubId) {
+    url.searchParams.set("deptsubId", rssDept.deptsubId);
   }
 
   if (params.anounceType) {
@@ -195,7 +237,11 @@ function parsePublishedAt(pubDate?: string): Date | null {
   return parsed;
 }
 
-export function mapRssToAnnouncements(parsed: ParsedRss): EgpAnnouncement[] {
+export function mapRssToAnnouncements(
+  parsed: ParsedRss,
+  options?: MapRssToAnnouncementsOptions,
+): EgpAnnouncement[] {
+  const rssScopeKeyForStableId = options?.rssScopeKeyForStableId;
   const items = ensureArray(parsed.rss?.channel?.item);
   const channelLink = parsed.rss?.channel?.link;
 
@@ -204,19 +250,27 @@ export function mapRssToAnnouncements(parsed: ParsedRss): EgpAnnouncement[] {
     announceType: string,
     link: string | undefined | null,
     index: number,
+    scopeKey?: string,
   ): string {
     // เป้าหมาย: ทำให้ “โปรเจกต์ + ประเภทประกาศ” แยก record ได้ และ upsert ได้ถูก
     // โดยไม่ให้ชนกันเพราะ projectNumber อย่างเดียว
     const projectKey = projectNumber.trim();
     const announceTypeKey = announceType.trim();
+    const deptKey = (scopeKey ?? "").trim();
 
     let idSource: string;
-    if (projectKey && announceTypeKey) {
+    if (deptKey && projectKey && announceTypeKey) {
+      idSource = `${deptKey}|${projectKey}|${announceTypeKey}`;
+    } else if (projectKey && announceTypeKey) {
       idSource = `${projectKey}|${announceTypeKey}`;
     } else if (link && /^https?:\/\//i.test(link)) {
-      idSource = `${link}|${announceTypeKey}`;
+      idSource = deptKey
+        ? `${deptKey}|${link}|${announceTypeKey}`
+        : `${link}|${announceTypeKey}`;
     } else {
-      idSource = `egp-item-${index}|${projectKey}|${announceTypeKey}`;
+      idSource = deptKey
+        ? `${deptKey}|egp-item-${index}|${projectKey}|${announceTypeKey}`
+        : `egp-item-${index}|${projectKey}|${announceTypeKey}`;
     }
 
     const hash = createHash("sha256").update(idSource).digest("hex");
@@ -239,6 +293,7 @@ export function mapRssToAnnouncements(parsed: ParsedRss): EgpAnnouncement[] {
       announceType ?? "",
       link,
       index,
+      rssScopeKeyForStableId,
     );
 
     results.push({

@@ -3,6 +3,30 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { PdfParseButton } from "../PdfParseButton";
 
+function formatThaiDate(dateString: string | null): string | null {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString("th-TH");
+}
+
+function formatThaiDateTime(dateString: string | null): string | null {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("th-TH");
+}
+
+function formatThaiBaht(amount: number | null): string | null {
+  if (amount === null) return null;
+  return amount.toLocaleString("th-TH", {
+    style: "currency",
+    currency: "THB",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function getStatusBadgeClass(status: string): string {
   const normalized = status.trim();
 
@@ -42,6 +66,12 @@ interface ProjectDetailResponse {
   winnerAmountBaht: string | null;
   bidDate: string | null;
   status: string | null;
+  agency: {
+    id: string;
+    name: string;
+    deptId: string | null;
+    deptsubId: string | null;
+  };
   types: {
     id: string;
     announceType: string;
@@ -119,157 +149,62 @@ export default async function ProjectDetailPage({
       : null;
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-8 space-y-2">
-          <div className="text-sm text-slate-500">
-            <Link
-              href={backHref}
-              className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800"
-            >
-              ← กลับไปหน้ารายการโครงการ
-            </Link>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
-            {data.title}
-          </h1>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-            {data.projectNumber && (
-              <span>
-                <span className="font-medium text-slate-800">
-                  เลขที่โครงการ:
-                </span>{" "}
-                {data.projectNumber}
-              </span>
-            )}
-            {data.methodId && (
-              <span>
-                <span className="font-medium text-slate-800">
-                  วิธีการจัดหา:
-                </span>{" "}
-                {data.methodId}
-              </span>
-            )}
-            {data.status && (
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-medium ${getStatusBadgeClass(
-                  data.status,
-                )}`}
+    <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="border-b border-slate-200 bg-white/80 backdrop-blur">
+        <div className="mx-auto max-w-5xl px-4 py-5 md:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Link
+                href={backHref}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
               >
-                สถานะโครงการ: {data.status}
-              </span>
-            )}
-            {data.bidDate && (
-              <span>
-                <span className="font-medium text-slate-800">
-                  วันที่เสนอราคา:
-                </span>{" "}
-                {new Date(data.bidDate).toLocaleDateString("th-TH")}
-              </span>
-            )}
-            {data.winnerName && (
-              <span>
-                <span className="font-medium text-slate-800">
-                  ผู้ที่ได้รับการคัดเลือก:
-                </span>{" "}
-                {data.winnerName}
-              </span>
-            )}
-          </div>
-        </header>
-
-        <section className="mb-6 rounded-2xl border border-slate-200 bg-white/90 p-4 text-xs text-slate-700 shadow-sm sm:p-6">
-          <h2 className="mb-3 text-sm font-semibold text-slate-900">
-            ข้อมูลโครงการ
-          </h2>
-          <div className="grid gap-y-2 text-[11px] sm:grid-cols-2 sm:gap-x-6">
-            <div className="flex">
-              <div className="w-32 shrink-0 font-medium text-slate-800">
-                เลขที่โครงการ
-              </div>
-              <div className="flex-1">
-                {data.projectNumber ?? <span className="text-slate-400">-</span>}
-              </div>
-            </div>
-            <div className="flex">
-              <div className="w-32 shrink-0 font-medium text-slate-800">
-                วิธีการจัดหา
-              </div>
-              <div className="flex-1">
-                {data.methodId ?? <span className="text-slate-400">-</span>}
-              </div>
-            </div>
-            <div className="flex">
-              <div className="w-32 shrink-0 font-medium text-slate-800">
-                วันที่เสนอราคา
-              </div>
-              <div className="flex-1">
-                {data.bidDate ? (
-                  new Date(data.bidDate).toLocaleDateString("th-TH")
-                ) : (
-                  <span className="text-slate-400">-</span>
-                )}
-              </div>
-            </div>
-            <div className="flex">
-              <div className="w-32 shrink-0 font-medium text-slate-800">
-                ผู้ที่ได้รับการคัดเลือก
-              </div>
-              <div className="flex-1">
-                {data.winnerName ?? <span className="text-slate-400">-</span>}
-              </div>
+                ← กลับไปหน้ารายการ
+              </Link>
             </div>
           </div>
-        </section>
 
-        <section className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-center shadow-sm">
+          <div className="mt-4 space-y-2">
+            <h1 className="text-balance text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+              {data.title}
+            </h1>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
+        <section
+          id="summary"
+          className="mb-6 grid gap-3 sm:grid-cols-3"
+          aria-label="สรุปโครงการ"
+        >
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="text-[11px] font-medium text-slate-600">
-              ราคากลาง (centralPriceBaht)
+              ราคากลาง
             </div>
             <div className="mt-1 text-base font-semibold text-slate-900">
-              {centralPrice !== null ? (
-                centralPrice.toLocaleString("th-TH", {
-                  style: "currency",
-                  currency: "THB",
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              ) : (
+              {formatThaiBaht(centralPrice) ?? (
                 <span className="text-xs font-normal text-slate-400">-</span>
               )}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-center shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="text-[11px] font-medium text-slate-600">
-              มูลค่าที่จัดหาได้
+              วงเงินผู้ชนะ/วงเงินจัดหาได้
             </div>
             <div className="mt-1 text-base font-semibold text-slate-900">
-              {winnerAmount !== null ? (
-                winnerAmount.toLocaleString("th-TH", {
-                  style: "currency",
-                  currency: "THB",
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })
-              ) : (
+              {formatThaiBaht(winnerAmount) ?? (
                 <span className="text-xs font-normal text-slate-400">-</span>
               )}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-center shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
             <div className="text-[11px] font-medium text-slate-600">
               ประหยัดได้ (ประมาณการ)
             </div>
             <div className="mt-1 text-base font-semibold text-slate-900">
-              {savingAmount !== null ? (
+              {formatThaiBaht(savingAmount) ? (
                 <>
-                  {savingAmount.toLocaleString("th-TH", {
-                    style: "currency",
-                    currency: "THB",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  {formatThaiBaht(savingAmount)}
                   {savingPercent !== null && (
                     <span className="ml-1 text-xs font-medium text-emerald-700">
                       ({savingPercent.toFixed(2)}%)
@@ -283,16 +218,150 @@ export default async function ProjectDetailPage({
           </div>
         </section>
 
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-slate-900">
+              รายละเอียดโครงการ
+            </h2>
+            <p className="text-[11px] text-slate-500">
+              แหล่งข้อมูล: ฐานข้อมูลที่ดึงจาก RSS e-GP
+            </p>
+          </div>
+
+          <dl className="mt-4 grid gap-x-8 gap-y-3 text-xs sm:grid-cols-2">
+            <div className="flex gap-3">
+              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+                หน่วยงาน
+              </dt>
+              <dd className="min-w-0 flex-1 text-slate-900">
+                {data.agency.name}
+              </dd>
+            </div>
+            <div className="flex gap-3">
+              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+                เลขที่โครงการ
+              </dt>
+              <dd className="min-w-0 flex-1 text-slate-900">
+                {data.projectNumber ?? (
+                  <span className="text-slate-400">-</span>
+                )}
+              </dd>
+            </div>
+            <div className="flex gap-3">
+              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+                วิธีการจัดหา
+              </dt>
+              <dd className="min-w-0 flex-1 text-slate-900">
+                {data.methodId ?? <span className="text-slate-400">-</span>}
+              </dd>
+            </div>
+            <div className="flex gap-3">
+              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+                วันที่เสนอราคา
+              </dt>
+              <dd className="min-w-0 flex-1 text-slate-900">
+                {formatThaiDate(data.bidDate) ?? (
+                  <span className="text-slate-400">-</span>
+                )}
+              </dd>
+            </div>
+            <div className="flex gap-3">
+              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+                ผู้ได้รับการคัดเลือก
+              </dt>
+              <dd className="min-w-0 flex-1 text-slate-900">
+                {data.winnerName ?? <span className="text-slate-400">-</span>}
+              </dd>
+            </div>
+            <div className="flex gap-3">
+              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+                สถานะ
+              </dt>
+              <dd className="min-w-0 flex-1 text-slate-900">
+                {data.status ? (
+                  <span
+                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
+                      data.status,
+                    )}`}
+                  >
+                    {data.status}
+                  </span>
+                ) : (
+                  <span className="text-slate-400">-</span>
+                )}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
         {data.types.length === 0 ? (
-          <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-6 text-sm text-slate-600">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-6 text-sm text-slate-600 shadow-sm">
             ยังไม่มีข้อมูลประกาศย่อยของโครงการนี้
           </div>
         ) : (
-          <section className="space-y-4">
-            <h2 className="text-sm font-semibold text-slate-900">
-              รายการประกาศตามประเภท (announceType)
-            </h2>
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <section id="documents" className="space-y-4" aria-label="ประกาศและเอกสาร">
+            <div className="flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">
+                  ประกาศและเอกสารที่เกี่ยวข้อง
+                </h2>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  เปิดลิงก์ไป e-GP หรืออ่าน/บันทึกข้อมูลจากไฟล์ PDF (ถ้ามี)
+                </p>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
+                ทั้งหมด {data.types.length} รายการ
+              </span>
+            </div>
+
+            <div className="grid gap-3 sm:hidden">
+              {data.types.map((type) => {
+                const canOpen = Boolean(type.link && /^https?:\/\//i.test(type.link));
+                return (
+                  <div
+                    key={type.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                        {type.announceType}
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {formatThaiDateTime(type.publishedAt) ?? "-"}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 grid gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        {canOpen ? (
+                          <a
+                            href={type.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm hover:border-emerald-300 hover:bg-emerald-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                          >
+                            เปิดใน e-GP ↗
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500">
+                            ไม่มีลิงก์ e-GP
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <PdfParseButton
+                          announcementId={type.id}
+                          announceType={type.announceType}
+                          canParse={canOpen}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm sm:block">
               <table className="min-w-full border-collapse text-xs text-slate-700">
                 <thead className="bg-slate-50">
                   <tr>
@@ -311,53 +380,54 @@ export default async function ProjectDetailPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.types.map((type) => (
-                    <tr
-                      key={type.id}
-                      className="border-t border-slate-100 hover:bg-slate-50/80"
-                    >
-                      <td className="px-4 py-2 align-top">
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                          {type.announceType}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 align-top">
-                        {type.publishedAt ? (
-                          <span className="text-[11px] text-slate-600">
-                            {new Date(type.publishedAt).toLocaleString("th-TH")}
+                  {data.types.map((type) => {
+                    const canOpen = Boolean(
+                      type.link && /^https?:\/\//i.test(type.link),
+                    );
+                    return (
+                      <tr
+                        key={type.id}
+                        className="border-t border-slate-100 hover:bg-slate-50/80"
+                      >
+                        <td className="px-4 py-2 align-top">
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">
+                            {type.announceType}
                           </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 align-top">
-                        {type.link && /^https?:\/\//i.test(type.link) ? (
-                          <a
-                            href={type.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800"
-                          >
-                            เปิดในระบบ e-GP
-                            <span aria-hidden>↗</span>
-                          </a>
-                        ) : (
-                          <span className="text-[11px] text-slate-400">
-                            -
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-2 align-top">
-                        <PdfParseButton
-                          announcementId={type.id}
-                          announceType={type.announceType}
-                          canParse={Boolean(
-                            type.link && /^https?:\/\//i.test(type.link),
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                          {formatThaiDateTime(type.publishedAt) ? (
+                            <span className="text-[11px] text-slate-600">
+                              {formatThaiDateTime(type.publishedAt)}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
                           )}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                          {canOpen && type.link ? (
+                            <a
+                              href={type.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+                            >
+                              เปิดใน e-GP
+                              <span aria-hidden>↗</span>
+                            </a>
+                          ) : (
+                            <span className="text-[11px] text-slate-400">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 align-top">
+                          <PdfParseButton
+                            announcementId={type.id}
+                            announceType={type.announceType}
+                            canParse={canOpen}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

@@ -5,7 +5,7 @@ const path = require("path");
 module.exports = {
   apps: [
     {
-      name: "rpp-e-gp",
+      name: "egp",
       script: path.join(__dirname, "node_modules", "next", "dist", "bin", "next"),
       args: "start",
       cwd: __dirname,

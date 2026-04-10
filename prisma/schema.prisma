@@ -7,9 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// หน่วยงาน (รหัสหน่วยงานภาครัฐ / หน่วยจัดซื้อย่อย ตามคู่มือ RSS e-GP)
+model EgpAgency {
+  id   String @id @default(cuid()) @db.VarChar(191)
+  name String @db.VarChar(512)
+  /// รหัสหน่วยงานภาครัฐ — พารามิเตอร์ RSS `deptId` (ถ้ามีจะใช้แทน deptsubId)
+  deptId String? @db.VarChar(191)
+  /// รหัสหน่วยจัดซื้อย่อย — พารามิเตอร์ RSS `deptsubId` (ใช้เมื่อไม่ระบุ deptId)
+  deptsubId String? @unique @db.VarChar(191)
+  /// 0 = ไม่ใช้งาน, 1 = ใช้งาน (รวมใน ingest)
+  status Int @default(1) @db.TinyInt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  projects      EgpProject[]
+  announcements EgpAnnouncement[]
+}
+
 model EgpProject {
   id                     String   @id @default(cuid()) @db.VarChar(191)
-  projectNumber          String   @unique @db.VarChar(191)
+  projectNumber          String   @db.VarChar(191)
   title                  String   @db.VarChar(512)
   methodId               String?  @db.VarChar(191)
   centralPriceBaht       Decimal? @db.Decimal(15, 2)
@@ -21,8 +39,13 @@ model EgpProject {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
+  agencyId String    @db.VarChar(191)
+  agency   EgpAgency @relation(fields: [agencyId], references: [id], onDelete: Restrict)
+
   announcements EgpAnnouncement[]
 
+  @@unique([agencyId, projectNumber])
+  @@index([agencyId])
   @@index([title])
 }
 
@@ -35,10 +58,14 @@ model EgpAnnouncement {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  projectId String
-  project   EgpProject @relation(fields: [projectId], references: [id])
+  projectId String     @db.VarChar(191)
+  project   EgpProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  agencyId String    @db.VarChar(191)
+  agency   EgpAgency @relation(fields: [agencyId], references: [id], onDelete: Restrict)
 
   @@index([projectId])
+  @@index([agencyId])
   @@index([announceType])
   @@index([publishedAt])
 }

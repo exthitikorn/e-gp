@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 import { IngestButton } from "./IngestButton";
+import prisma from "@/lib/db";
 
 type SearchParams = {
   q?: string;
@@ -9,6 +10,7 @@ type SearchParams = {
   projectNumber?: string;
   methodId?: string;
   status?: string;
+  agencyId?: string;
 };
 
 interface SearchPageProps {
@@ -22,6 +24,10 @@ type ProjectSearchItem = {
   status: string | null;
   title: string;
   updatedAt: string;
+  agencyId: string;
+  agencyName: string;
+  agencyDeptId: string | null;
+  agencyDeptsubId: string | null;
 };
 
 type ProjectSearchResponse = {
@@ -50,14 +56,10 @@ async function fetchProjectsFromApi(
   params: URLSearchParams,
 ): Promise<ProjectSearchResponse> {
   const query = params.toString();
-  const baseUrl =
-    process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
-  const res = await fetch(
-    `${baseUrl}/api/egp/projects/search?${query}`,
-    {
-      cache: "no-store",
-    },
-  );
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+  const res = await fetch(`${baseUrl}/api/egp/projects/search?${query}`, {
+    cache: "no-store",
+  });
 
   if (!res.ok) {
     throw new Error("ไม่สามารถดึงข้อมูลโครงการจากฐานข้อมูลได้");
@@ -70,6 +72,10 @@ export default async function AnnouncementsPage({
   searchParams,
 }: SearchPageProps) {
   const resolvedSearchParams = (await searchParams) ?? {};
+  const agencies = await prisma.egpAgency.findMany({
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    select: { id: true, name: true },
+  });
   const params = new URLSearchParams();
 
   if (resolvedSearchParams.q) {
@@ -83,6 +89,9 @@ export default async function AnnouncementsPage({
   }
   if (resolvedSearchParams.status) {
     params.set("status", resolvedSearchParams.status);
+  }
+  if (resolvedSearchParams.agencyId) {
+    params.set("agencyId", resolvedSearchParams.agencyId);
   }
   if (resolvedSearchParams.page) {
     params.set("page", resolvedSearchParams.page);
@@ -112,7 +121,7 @@ export default async function AnnouncementsPage({
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 space-y-2">
-          <div className="text-sm text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
             <Link
               href="/"
               className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800"
@@ -137,14 +146,14 @@ export default async function AnnouncementsPage({
             key={formKey}
             method="GET"
             action="/egp/announcements"
-            className="grid gap-4 text-sm sm:grid-cols-4 sm:items-end"
+            className="grid gap-4 text-sm sm:grid-cols-5 sm:items-end"
           >
             <div className="space-y-1 sm:col-span-1 sm:flex sm:flex-col sm:items-stretch sm:gap-2">
               <label
                 htmlFor="q"
                 className="block text-xs font-medium text-slate-600"
               >
-                คีย์เวิร์ด (ชื่อโครงการ / เลขที่ / วิธีการ / สถานะ)
+                คีย์เวิร์ด
               </label>
               <input
                 id="q"
@@ -192,6 +201,27 @@ export default async function AnnouncementsPage({
             </div>
             <div className="space-y-1 sm:col-span-1">
               <label
+                htmlFor="agencyId"
+                className="block text-xs font-medium text-slate-600"
+              >
+                หน่วยงาน
+              </label>
+              <select
+                id="agencyId"
+                name="agencyId"
+                defaultValue={resolvedSearchParams.agencyId ?? ""}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-900 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value="">ทั้งหมด</option>
+                {agencies.map((agency) => (
+                  <option key={agency.id} value={agency.id}>
+                    {agency.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1 sm:col-span-1">
+              <label
                 htmlFor="status"
                 className="block text-xs font-medium text-slate-600"
               >
@@ -205,11 +235,15 @@ export default async function AnnouncementsPage({
               >
                 <option value="">ทั้งหมด</option>
                 <option value="ยกเลิก">ยกเลิกโครงการ</option>
-                <option value="ผู้ชนะการเสนอราคา">ประกาศผู้ชนะการเสนอราคา</option>
-                <option value="หนังสือเชิญชวน/ประกาศเชิญชวน">หนังสือเชิญชวน/ประกาศเชิญชวน</option>
+                <option value="ผู้ชนะการเสนอราคา">
+                  ประกาศผู้ชนะการเสนอราคา
+                </option>
+                <option value="หนังสือเชิญชวน/ประกาศเชิญชวน">
+                  หนังสือเชิญชวน/ประกาศเชิญชวน
+                </option>
               </select>
             </div>
-            <div className="sm:col-span-4 flex items-end justify-end gap-2">
+            <div className="sm:col-span-5 flex items-end justify-end gap-2">
               <Link
                 href="/egp/announcements"
                 className="inline-flex items-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-400 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
@@ -224,10 +258,6 @@ export default async function AnnouncementsPage({
               </button>
             </div>
           </form>
-          <p className="mt-3 text-xs text-slate-500">
-            * การค้นหาใช้ข้อมูลที่ระบบดึงจาก RSS e-GP มาบันทึกไว้ในฐานข้อมูลของ
-            หน่วยงานแล้ว
-          </p>
         </section>
 
         {projects.length === 0 ? (
@@ -249,7 +279,7 @@ export default async function AnnouncementsPage({
             <ul className="space-y-4">
               {projects.map((item) => {
                 const detailBaseHref = `/egp/announcements/${encodeURIComponent(
-                  item.projectNumber ?? item.id,
+                  item.id,
                 )}`;
                 const detailHref = formKey
                   ? `${detailBaseHref}?${formKey}`
@@ -281,26 +311,30 @@ export default async function AnnouncementsPage({
                           )}
                         </div>
 
-                        {(item.projectNumber || item.methodId) && (
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
-                            {item.projectNumber && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  เลขที่โครงการ:
-                                </span>{" "}
-                                {item.projectNumber}
-                              </span>
-                            )}
-                            {item.methodId && (
-                              <span>
-                                <span className="font-medium text-slate-800">
-                                  วิธีการจัดหา:
-                                </span>{" "}
-                                {item.methodId}
-                              </span>
-                            )}
-                          </div>
-                        )}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
+                          <span>
+                            <span className="font-medium text-slate-800">
+                              หน่วยงาน:
+                            </span>{" "}
+                            {item.agencyName}
+                          </span>
+                          {item.projectNumber && (
+                            <span>
+                              <span className="font-medium text-slate-800">
+                                เลขที่โครงการ:
+                              </span>{" "}
+                              {item.projectNumber}
+                            </span>
+                          )}
+                          {item.methodId && (
+                            <span>
+                              <span className="font-medium text-slate-800">
+                                วิธีการจัดหา:
+                              </span>{" "}
+                              {item.methodId}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </Link>
                   </li>
@@ -387,4 +421,3 @@ export default async function AnnouncementsPage({
     </div>
   );
 }
-

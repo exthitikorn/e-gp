@@ -16,6 +16,7 @@ export interface UpsertAnnouncementsResult {
 
 export async function upsertAnnouncements(
   announcements: RssAnnouncement[],
+  agencyId: string,
 ): Promise<UpsertAnnouncementsResult> {
   let created = 0;
   let updated = 0;
@@ -29,8 +30,14 @@ export async function upsertAnnouncements(
     }
 
     const project = await prisma.egpProject.upsert({
-      where: { projectNumber },
+      where: {
+        agencyId_projectNumber: {
+          agencyId,
+          projectNumber,
+        },
+      },
       create: {
+        agencyId,
         projectNumber,
         title: ann.title,
         methodId: ann.methodId ?? null,
@@ -51,6 +58,7 @@ export async function upsertAnnouncements(
       where: { id: typeId },
       create: {
         id: typeId,
+        agencyId,
         projectId: project.id,
         announceType: announceTypeValue,
         rawDescription: ann.rawDescription,
@@ -58,6 +66,7 @@ export async function upsertAnnouncements(
         publishedAt: ann.publishedAt,
       },
       update: {
+        agencyId,
         projectId: project.id,
         announceType: announceTypeValue,
         rawDescription: ann.rawDescription,
@@ -132,4 +141,3 @@ export async function upsertAnnouncements(
 
   return { created, updated, byAnnounceType };
 }
-

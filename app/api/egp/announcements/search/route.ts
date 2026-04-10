@@ -9,6 +9,7 @@ interface SearchParams {
   projectNumber?: string | null;
   methodId?: string | null;
   status?: string | null;
+  agencyId?: string | null;
   page: number;
   pageSize: number;
 }
@@ -24,6 +25,8 @@ function parseSearchParams(request: Request): SearchParams {
   const projectNumber = searchParams.get("projectNumber");
   const methodId = searchParams.get("methodId");
   const status = searchParams.get("status");
+  const agencyId =
+    searchParams.get("agencyId") ?? searchParams.get("deptSubId");
   const page = Number(searchParams.get("page") ?? "1");
   const pageSize = Number(searchParams.get("pageSize") ?? DEFAULT_PAGE_SIZE);
 
@@ -34,6 +37,7 @@ function parseSearchParams(request: Request): SearchParams {
     projectNumber,
     methodId,
     status,
+    agencyId,
     page: Number.isNaN(page) || page < 1 ? 1 : page,
     pageSize:
       Number.isNaN(pageSize) || pageSize < 1 || pageSize > 100
@@ -50,12 +54,17 @@ export async function GET(request: Request) {
     projectNumber,
     methodId,
     status,
+    agencyId,
     page,
     pageSize,
   } = parseSearchParams(request);
 
   const where: Prisma.EgpAnnouncementWhereInput = {};
   let projectWhere: Prisma.EgpProjectWhereInput | undefined;
+
+  if (agencyId) {
+    where.agencyId = agencyId;
+  }
 
   if (startDate || endDate) {
     where.publishedAt = {};
@@ -121,16 +130,28 @@ export async function GET(request: Request) {
 
   const skip = (page - 1) * pageSize;
   const take = pageSize;
+  const safeWhere: Prisma.EgpAnnouncementWhereInput = {
+    ...where,
+    // กันข้อมูลค้างที่ FK ชี้หน่วยงาน/โครงการไม่เจอ
+    agency: { is: {} },
+  };
 
   const [total, items] = await Promise.all([
-    prisma.egpAnnouncement.count({ where }),
+    prisma.egpAnnouncement.count({ where: safeWhere }),
     prisma.egpAnnouncement.findMany({
-      where,
+      where: safeWhere,
       orderBy: { publishedAt: "desc" },
       skip,
       take,
       include: {
-        project: true,
+        project: {
+          select: {
+            projectNumber: true,
+            title: true,
+            methodId: true,
+            status: true,
+          },
+        },
       },
     }),
   ]);
@@ -147,6 +168,10 @@ export async function GET(request: Request) {
     rawDescription: item.rawDescription,
     link: item.link,
     publishedAt: item.publishedAt,
+    agencyId: item.agencyId,
+    agencyName: null,
+    agencyDeptId: null,
+    agencyDeptsubId: null,
   }));
 
   return NextResponse.json({

@@ -32,10 +32,146 @@ function formatBaht(value: number): string {
   });
 }
 
-export default async function Home() {
+function formatThaiDateTime(date: Date): string {
+  return date.toLocaleString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatThaiMonthYear(date: Date): string {
+  return date.toLocaleDateString("th-TH", {
+    timeZone: "Asia/Bangkok",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function parseMonthParam(
+  value: string | string[] | undefined,
+  fallback: Date,
+): Date {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+  if (!match) {
+    return fallback;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    return fallback;
+  }
+
+  return new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+}
+
+function toMonthParam(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+export default async function Home({
+  searchParams,
+}: {
+  searchParams?: Promise<{ month?: string | string[] }>;
+}) {
   const now = new Date();
+  const resolvedSearchParams = await searchParams;
+  const selectedMonth = parseMonthParam(resolvedSearchParams?.month, now);
+  const prevMonth = new Date(
+    Date.UTC(
+      selectedMonth.getUTCFullYear(),
+      selectedMonth.getUTCMonth() - 1,
+      1,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
+  const nextMonth = new Date(
+    Date.UTC(
+      selectedMonth.getUTCFullYear(),
+      selectedMonth.getUTCMonth() + 1,
+      1,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
   const isRssOpen = isRssWindowOpenInBangkok(now);
-  const stats = await getLandingStats();
+  const stats = await getLandingStats({ calendarMonth: selectedMonth });
+  const calendarByDate = new Map(
+    stats.procurementCalendar.map((item) => [
+      item.date.toISOString().slice(0, 10),
+      item,
+    ]),
+  );
+
+  const monthStart = new Date(
+    Date.UTC(
+      selectedMonth.getUTCFullYear(),
+      selectedMonth.getUTCMonth(),
+      1,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
+  const monthEnd = new Date(
+    Date.UTC(
+      selectedMonth.getUTCFullYear(),
+      selectedMonth.getUTCMonth() + 1,
+      0,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
+  const monthStartWeekday = monthStart.getUTCDay();
+  const monthCalendarEntries = stats.procurementCalendar.reduce(
+    (sum, item) => sum + item.totalCount,
+    0,
+  );
+  const dayCells: Array<{
+    date: Date | null;
+    data: (typeof stats.procurementCalendar)[number] | null;
+  }> = [];
+
+  for (let i = 0; i < monthStartWeekday; i += 1) {
+    dayCells.push({ date: null, data: null });
+  }
+
+  for (let day = 1; day <= monthEnd.getUTCDate(); day += 1) {
+    const date = new Date(
+      Date.UTC(
+        selectedMonth.getUTCFullYear(),
+        selectedMonth.getUTCMonth(),
+        day,
+        0,
+        0,
+        0,
+        0,
+      ),
+    );
+    const key = date.toISOString().slice(0, 10);
+    dayCells.push({
+      date,
+      data: calendarByDate.get(key) ?? null,
+    });
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-linear-to-b from-slate-50 via-white to-slate-100 text-slate-900">
@@ -45,15 +181,15 @@ export default async function Home() {
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(56,189,248,0.18),transparent_55%),radial-gradient(circle_at_bottom,rgba(45,212,191,0.12),transparent_55%)] opacity-90"
       />
 
-      <main className="relative mx-auto flex min-h-screen max-w-7xl flex-col gap-14 px-6 pb-16 pt-10 md:gap-20 md:px-10 md:pb-24 md:pt-14 lg:flex-row lg:items-center">
+      <main className="relative mx-auto flex max-w-7xl flex-col gap-10 px-6 pb-8 pt-10 md:gap-12 md:px-10 md:pb-10 md:pt-14 lg:flex-row">
         {/* Hero */}
         <section className="flex-1.1 space-y-8">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm backdrop-blur">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/90 text-[10px] font-bold text-slate-950">
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/90 text-[10px] font-bold text-white">
               e
             </span>
             <span className="text-emerald-600">
-              ระบบจัดซื้อจัดจ้าง โรงพยาบาลราชพิพัฒน์
+              ระบบจัดซื้อจัดจ้าง
             </span>
             <span className="h-1 w-1 rounded-full bg-slate-500" />
             <span className="text-slate-500">
@@ -64,12 +200,9 @@ export default async function Home() {
           <div className="space-y-6">
             <h1 className="text-balance text-3xl font-semibold leading-tight tracking-tight text-slate-900 sm:text-4xl lg:text-5xl">
               ศูนย์กลางโครงการจัดซื้อจัดจ้าง
-              <span className="block bg-linear-to-r from-cyan-500 via-emerald-500 to-sky-500 bg-clip-text text-transparent">
-                โรงพยาบาลราชพิพัฒน์
-              </span>
             </h1>
             <p className="max-w-xl text-pretty text-sm leading-relaxed text-slate-600 sm:text-base">
-              แสดงข้อมูลโครงการจัดซื้อจัดจ้างจากระบบ e-GP ของโรงพยาบาลราชพิพัฒน์
+              แสดงข้อมูลโครงการจัดซื้อจัดจ้างจากระบบ e-GP
               ในที่เดียว ค้นหาและตรวจสอบย้อนหลังได้สะดวก ช่วยให้การจัดหาพัสดุ
               เวชภัณฑ์ และครุภัณฑ์ทางการแพทย์เป็นไปอย่างโปร่งใส และตรวจสอบได้
             </p>
@@ -80,46 +213,19 @@ export default async function Home() {
               href="/egp/announcements"
               className="inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-cyan-500 via-emerald-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_45px_-18px_rgba(34,197,94,0.65)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_-22px_rgba(34,197,94,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 md:text-base"
             >
-              ดูโครงการจัดซื้อจัดจ้างของโรงพยาบาล
+              ดูโครงการจัดซื้อจัดจ้าง
               <span aria-hidden className="text-base">
                 ↗
               </span>
             </Link>
 
-            <button
-              type="button"
+            <Link
+              href="#procurement-calendar"
               className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white/80 px-5 py-3 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:text-sm"
             >
-              คู่มือการใช้งานสำหรับหน่วยงานโรงพยาบาล
-            </button>
+              ดูปฏิทินจัดซื้อจัดจ้าง
+            </Link>
           </div>
-
-          {/* <dl className="grid grid-cols-2 gap-4 pt-4 text-xs text-slate-300 sm:grid-cols-3 sm:text-sm">
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 px-4 py-3 shadow-sm">
-              <dt className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                หน่วยงานภายในที่ใช้งาน
-              </dt>
-              <dd className="mt-1 text-lg font-semibold text-slate-50 sm:text-xl">
-                10+
-              </dd>
-            </div>
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 px-4 py-3 shadow-sm">
-              <dt className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
-                โครงการจัดซื้อ/ปี
-              </dt>
-              <dd className="mt-1 text-lg font-semibold text-sky-300 sm:text-xl">
-                500+
-              </dd>
-            </div>
-            <div className="col-span-2 rounded-2xl border border-emerald-500/40 bg-gradient-to-r from-emerald-500/10 via-teal-400/5 to-cyan-400/10 px-4 py-3 shadow-[0_18px_45px_-18px_rgba(34,197,94,0.55)] sm:col-span-1">
-              <dt className="text-[11px] font-medium uppercase tracking-[0.16em] text-emerald-200/90">
-                รองรับมาตรฐาน พ.ร.บ. จัดซื้อจัดจ้างภาครัฐ
-              </dt>
-              <dd className="mt-1 text-sm font-semibold text-emerald-100 sm:text-base">
-                โปร่งใส ตรวจสอบย้อนหลังได้ทุกรายการของโรงพยาบาล
-              </dd>
-            </div>
-          </dl> */}
         </section>
 
         {/* Right column: quick overview cards */}
@@ -154,6 +260,27 @@ export default async function Home() {
                 </p>
               </div>
             </header>
+
+            <div className="mb-3 grid grid-cols-1 gap-2 text-[11px] text-slate-600 sm:grid-cols-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                รายการในปฏิทินเดือนนี้:{" "}
+                <span className="font-semibold text-slate-900">
+                  {formatStat(monthCalendarEntries)}
+                </span>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                รายการล่าสุด:{" "}
+                <span className="font-semibold text-slate-900">
+                  {stats.lastUpdatedAt ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.` : "-"}
+                </span>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                จำนวนประกาศทั้งหมด:{" "}
+                <span className="font-semibold text-slate-900">
+                  {formatStat(stats.totalAnnouncementsCount)}
+                </span>
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
@@ -201,49 +328,135 @@ export default async function Home() {
                 </p>
               </div>
             </div>
-
-            <p className="mt-3 text-center text-[11px] text-slate-500">
-              ในระบบ: โครงการ {formatStat(stats.totalProjectsCount)} รายการ •
-              ประกาศ {formatStat(stats.totalAnnouncementsCount)} รายการ
-            </p>
-            <div className="mt-4 flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-              <div>
-                <p className="font-medium text-slate-900">
-                  มองหาประกาศของโรงพยาบาลราชพิพัฒน์อยู่หรือไม่?
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  เข้าระบบเพื่อดูรายละเอียดประกาศจัดซื้อจัดจ้างและสัญญาทั้งหมด
-                </p>
-              </div>
-              <Link
-                href="/egp/announcements"
-                className="hidden rounded-full bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-slate-50 shadow-sm transition hover:bg-black/80 md:inline-flex"
-              >
-                ไปยังหน้าประกาศ
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid gap-3 text-xs text-slate-600 sm:grid-cols-2 sm:text-sm">
-            <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
-                สำหรับหน่วยงานภายในโรงพยาบาล
-              </p>
-              <p className="text-slate-700">
-                วางแผนจัดซื้อทั้งปี อนุมัติเอกสาร และติดตามสถานะโครงการของแต่ละหน่วยงานได้ในที่เดียว
-              </p>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3">
-              <p className="mb-1 text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
-                สำหรับผู้ประกอบการ/คู่ค้า
-              </p>
-              <p className="text-slate-700">
-                ค้นหาประกาศล่าสุดของโรงพยาบาลราชพิพัฒน์ และติดตามโอกาสในการยื่นข้อเสนอผ่านระบบ e-GP
-              </p>
-            </div>
           </div>
         </section>
       </main>
+
+      <section
+        id="procurement-calendar"
+        className="relative mx-auto mt-2 mb-16 w-full max-w-7xl scroll-mt-24 px-6 md:mt-3 md:px-10"
+      >
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 text-xs text-slate-700 shadow-[0_24px_65px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-semibold text-slate-800 md:text-xl">
+              ปฏิทินจัดซื้อจัดจ้าง
+            </h2>
+            <Link
+              href="/"
+              className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1 text-[11px] font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-900"
+            >
+              กลับเดือนปัจจุบัน
+            </Link>
+          </div>
+
+          <div className="mb-2 flex justify-center text-[11px] text-slate-500">
+            <div className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1">
+              <Link
+                href={`/?month=${toMonthParam(prevMonth)}`}
+                aria-label="เดือนก่อนหน้า"
+                className="text-sm font-semibold text-slate-700 hover:text-slate-900"
+              >
+                &lt;
+              </Link>
+              <span className="text-[11px] font-medium text-slate-700">
+                {formatThaiMonthYear(selectedMonth)}
+              </span>
+              <Link
+                href={`/?month=${toMonthParam(nextMonth)}`}
+                aria-label="เดือนถัดไป"
+                className="text-sm font-semibold text-slate-700 hover:text-slate-900"
+              >
+                &gt;
+              </Link>
+            </div>
+          </div>
+          <div className="mb-2 flex flex-wrap gap-2 text-[11px]">
+            <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-medium text-emerald-700">
+              แผนการจัดซื้อ
+            </span>
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 font-medium text-amber-700">
+              ร่างประชาพิจารณ์ TOR
+            </span>
+            <span className="rounded-full bg-sky-100 px-2.5 py-1 font-medium text-sky-700">
+              ประกาศเชิญชวน
+            </span>
+          </div>
+          <div className="overflow-x-auto pb-1">
+            <div className="min-w-[680px]">
+              <div className="grid grid-cols-7 gap-1 text-[11px]">
+                {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((day) => (
+                  <div
+                    key={day}
+                    className="rounded-md bg-slate-100 px-1 py-1 text-center font-medium text-slate-600"
+                  >
+                    {day}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-1 grid grid-cols-7 gap-1">
+                {dayCells.map((cell, index) => {
+                  if (!cell.date) {
+                    return (
+                      <div
+                        key={`empty-${index}`}
+                        className="aspect-square rounded-md border border-transparent bg-slate-50/40"
+                      />
+                    );
+                  }
+
+                  const isToday =
+                    cell.date.toISOString().slice(0, 10) ===
+                    now.toISOString().slice(0, 10);
+
+                  return (
+                    <div
+                      key={cell.date.toISOString()}
+                      className={`aspect-square rounded-md border p-1.5 ${
+                        isToday
+                          ? "border-emerald-300 bg-emerald-50"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <p className="text-xs font-semibold leading-none text-slate-700">
+                        {cell.date.getUTCDate()}
+                      </p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {(cell.data?.planCount ?? 0) > 0 ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium leading-none text-emerald-700">
+                            แผนการจัดซื้อ ({formatStat(cell.data?.planCount ?? 0)})
+                          </span>
+                        ) : null}
+                        {(cell.data?.torDraftCount ?? 0) > 0 ? (
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium leading-none text-amber-700">
+                            ร่างประชาพิจารณ์ TOR ({formatStat(cell.data?.torDraftCount ?? 0)})
+                          </span>
+                        ) : null}
+                        {(cell.data?.invitationCount ?? 0) > 0 ? (
+                          <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-medium leading-none text-sky-700">
+                            ประกาศเชิญชวน ({formatStat(cell.data?.invitationCount ?? 0)})
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          {stats.procurementCalendar.length === 0 ? (
+            <p className="mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+              ไม่พบข้อมูลย้อนหลังที่เข้ากลุ่มแผนการจัดซื้อ, ร่าง TOR หรือประกาศเชิญชวน
+            </p>
+          ) : null}
+          <div className="mt-3 flex flex-col gap-1 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+            <p>* ร่างประชาพิจารณ์และประกาศเชิญชวนอัพเดทข้อมูลตามรอบดึงข้อมูลจากกรมบัญชีกลาง</p>
+            <p>
+              ข้อมูลปรับปรุง ณ{" "}
+              {stats.lastUpdatedAt ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.` : "-"}
+            </p>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

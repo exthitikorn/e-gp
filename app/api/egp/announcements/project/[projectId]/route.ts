@@ -11,6 +11,12 @@ interface ProjectDetailResponse {
   winnerAmountBaht: string | null;
   bidDate: string | null;
   status: string | null;
+  agency: {
+    id: string;
+    name: string;
+    deptId: string | null;
+    deptsubId: string | null;
+  };
   types: {
     id: string;
     announceType: string;
@@ -26,18 +32,38 @@ interface RouteParams {
   }>;
 }
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export async function GET(request: Request, { params }: RouteParams) {
   const { projectId } = await params;
+  const sp = new URL(request.url).searchParams;
+  const agencyIdFilter =
+    sp.get("agencyId") ?? sp.get("deptSubId");
 
   const project = await prisma.egpProject.findFirst({
     where: {
-      OR: [{ id: projectId }, { projectNumber: projectId }],
+      AND: [
+        {
+          agency: { is: {} },
+        },
+        {
+          OR: [
+            { id: projectId },
+            {
+              projectNumber: projectId,
+              ...(agencyIdFilter ? { agencyId: agencyIdFilter } : {}),
+            },
+          ],
+        },
+      ],
     },
     include: {
       announcements: {
         orderBy: { publishedAt: "desc" },
       },
+      agency: {
+        select: { id: true, name: true, deptId: true, deptsubId: true },
+      },
     },
+    orderBy: { updatedAt: "desc" },
   });
 
   if (!project) {
@@ -61,6 +87,12 @@ export async function GET(_request: Request, { params }: RouteParams) {
       : null,
     bidDate: project.bidDate ? project.bidDate.toISOString() : null,
     status: project.status ?? null,
+    agency: {
+      id: project.agency.id,
+      name: project.agency.name,
+      deptId: project.agency.deptId,
+      deptsubId: project.agency.deptsubId,
+    },
     types: project.announcements.map(
       (t): ProjectDetailResponse["types"][number] => ({
         id: t.id,
@@ -74,4 +106,3 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
   return NextResponse.json(payload, { status: 200 });
 }
-
