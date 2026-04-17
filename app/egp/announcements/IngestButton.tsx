@@ -98,12 +98,19 @@ export function IngestButton() {
 
       const startUrl = new URL(baseIngestUrl.toString());
       startUrl.searchParams.set("async", "1");
+      console.log("[EGP Ingest] start request", {
+        url: startUrl.toString(),
+      });
 
       const startResponse = await fetch(startUrl.toString(), {
         method: "GET",
         cache: "no-store",
       });
       const startData: IngestJobResponse = await startResponse.json();
+      console.log("[EGP Ingest] start response", {
+        status: startResponse.status,
+        jobId: startData.job?.jobId,
+      });
 
       if (startResponse.status === 401) {
         if (!ingestToken) {
@@ -127,12 +134,22 @@ export function IngestButton() {
       for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
         const statusUrl = new URL(baseIngestUrl.toString());
         statusUrl.searchParams.set("jobId", startData.job.jobId);
+        console.log("[EGP Ingest] poll request", {
+          attempt: attempt + 1,
+          maxAttempts: MAX_POLL_ATTEMPTS,
+          url: statusUrl.toString(),
+        });
 
         const statusResponse = await fetch(statusUrl.toString(), {
           method: "GET",
           cache: "no-store",
         });
         const statusData: IngestJobResponse = await statusResponse.json();
+        console.log("[EGP Ingest] poll response", {
+          attempt: attempt + 1,
+          statusCode: statusResponse.status,
+          jobStatus: statusData.job?.status,
+        });
 
         ingestStatus = statusData.job?.status ?? "failed";
         ingestResult = statusData.result;
@@ -187,7 +204,13 @@ export function IngestButton() {
         ingestResult.byAgencies ?? ingestResult.byDepartment ?? [],
       );
       setIsResultVisible(true);
+      console.log("[EGP Ingest] completed", {
+        created: ingestResult.created,
+        updated: ingestResult.updated,
+        totalFromRss: ingestResult.totalFromRss,
+      });
     } catch {
+      console.log("[EGP Ingest] failed with unexpected error");
       setError("เกิดข้อผิดพลาดระหว่างดึงข้อมูลจาก e-GP");
     } finally {
       setIsLoading(false);
