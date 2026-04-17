@@ -40,7 +40,21 @@ interface IngestResult {
   error?: string;
 }
 
+interface IngestJobStatus {
+  jobId: string;
+  status: "running" | "completed" | "failed";
+  startedAt: string;
+  finishedAt?: string;
+}
+
+interface IngestJobResponse {
+  job: IngestJobStatus;
+  result?: IngestResult;
+}
+
 const ingestToken = process.env.NEXT_PUBLIC_EGP_INGEST_SECRET;
+const POLL_INTERVAL_MS = 2500;
+const MAX_POLL_ATTEMPTS = 180;
 
 export function IngestButton() {
   const [isPending, startTransition] = useTransition();
@@ -70,46 +84,95 @@ export function IngestButton() {
       setIsResultVisible(false);
 
       try {
-        const ingestUrl = new URL(
+        const baseIngestUrl = new URL(
           "/api/egp/announcements/ingest",
           window.location.origin,
         );
         if (ingestToken) {
-          ingestUrl.searchParams.set("token", ingestToken);
+          baseIngestUrl.searchParams.set("token", ingestToken);
         }
 
-        const response = await fetch(ingestUrl.toString(), {
+        const startUrl = new URL(baseIngestUrl.toString());
+        startUrl.searchParams.set("async", "1");
+
+        const startResponse = await fetch(startUrl.toString(), {
           method: "GET",
           cache: "no-store",
         });
+        const startData: IngestJobResponse = await startResponse.json();
 
-        const data: IngestResult = await response.json();
-
-        if (response.status === 422) {
-          setError(
-            data.error ||
-              "ยังไม่มีหน่วยงานที่ status = 1 ในฐานข้อมูล — ให้เพิ่ม EgpAgency ก่อน",
-          );
-          return;
-        }
-
-        if (!response.ok || data.error) {
-          if (response.status === 401 && !ingestToken) {
+        if (startResponse.status === 401) {
+          if (!ingestToken) {
             setError(
               "Unauthorized: กรุณาตั้งค่า NEXT_PUBLIC_EGP_INGEST_SECRET ให้ตรงกับ EGP_INGEST_SECRET",
             );
             return;
           }
-          setError(data.error || "ดึงข้อมูลไม่สำเร็จ");
+          setError(startData.result?.error || "Unauthorized");
+          return;
+        }
+
+        if (!startResponse.ok || !startData.job?.jobId) {
+          setError(startData.result?.error || "เริ่มงาน ingest ไม่สำเร็จ");
+          return;
+        }
+
+        let ingestResult: IngestResult | undefined;
+        let ingestStatus: IngestJobStatus["status"] = startData.job.status;
+
+        for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+          const statusUrl = new URL(baseIngestUrl.toString());
+          statusUrl.searchParams.set("jobId", startData.job.jobId);
+
+          const statusResponse = await fetch(statusUrl.toString(), {
+            method: "GET",
+            cache: "no-store",
+          });
+          const statusData: IngestJobResponse = await statusResponse.json();
+
+          ingestStatus = statusData.job?.status ?? "failed";
+          ingestResult = statusData.result;
+
+          if (ingestStatus !== "running") {
+            break;
+          }
+
+          await new Promise((resolve) => {
+            setTimeout(resolve, POLL_INTERVAL_MS);
+          });
+        }
+
+        if (ingestStatus === "running") {
+          setError(
+            "งาน ingest ยังไม่เสร็จภายในเวลาที่กำหนด กรุณาลองใหม่อีกครั้งเพื่อตรวจสถานะ",
+          );
+          return;
+        }
+
+        if (!ingestResult) {
+          setError("ไม่ได้รับผลลัพธ์จากงาน ingest");
+          return;
+        }
+
+        if (ingestResult.error) {
+          if (
+            ingestResult.error.includes("ไม่มีหน่วยงานที่ status = 1")
+          ) {
+            setError(
+              "ยังไม่มีหน่วยงานที่ status = 1 ในฐานข้อมูล — ให้เพิ่ม EgpAgency ก่อน",
+            );
+            return;
+          }
+          setError(ingestResult.error || "ดึงข้อมูลไม่สำเร็จ");
           return;
         }
 
         setSummaryStats({
-          created: data.created,
-          updated: data.updated,
-          totalFromRss: data.totalFromRss,
+          created: ingestResult.created,
+          updated: ingestResult.updated,
+          totalFromRss: ingestResult.totalFromRss,
         });
-        const sortedTypeStats = Object.entries(data.byAnnounceType ?? {})
+        const sortedTypeStats = Object.entries(ingestResult.byAnnounceType ?? {})
           .map(([type, stats]) => ({
             type,
             created: stats.created,
@@ -118,7 +181,9 @@ export function IngestButton() {
           }))
           .sort((a, b) => b.total - a.total);
         setTypeStats(sortedTypeStats);
-        setAgencySlices(data.byAgencies ?? data.byDepartment ?? []);
+        setAgencySlices(
+          ingestResult.byAgencies ?? ingestResult.byDepartment ?? [],
+        );
         setIsResultVisible(true);
       } catch {
         setError("เกิดข้อผิดพลาดระหว่างดึงข้อมูลจาก e-GP");
