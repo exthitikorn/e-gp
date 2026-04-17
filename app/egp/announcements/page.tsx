@@ -132,11 +132,7 @@ export default async function AnnouncementsPage({
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             โครงการจัดซื้อจัดจ้าง
           </h1>
-          <div className="space-y-2">
-            <p className="text-sm text-slate-600 sm:text-base">
-              เก็บข้อมูลโครงการและประกาศจากระบบ e-GP ของหน่วยงาน
-              ตั้งแต่วันที่เริ่มใช้งาน RSS สามารถค้นหาย้อนหลังได้ตลอดเวลา
-            </p>
+          <div className="hidden space-y-2">
             <IngestButton />
           </div>
         </header>

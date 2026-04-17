@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 
 interface AgencyIngestSlice {
   agencyId: string;
@@ -40,9 +40,11 @@ interface IngestResult {
   error?: string;
 }
 
+const ingestToken = process.env.NEXT_PUBLIC_EGP_INGEST_SECRET;
+
 export function IngestButton() {
   const [isPending, startTransition] = useTransition();
-  const [isIngestVisible, setIsIngestVisible] = useState(false);
+  const [isResultVisible, setIsResultVisible] = useState(false);
   const [summaryStats, setSummaryStats] = useState<{
     created: number;
     updated: number;
@@ -59,34 +61,24 @@ export function IngestButton() {
   const [agencySlices, setAgencySlices] = useState<AgencyIngestSlice[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      // ทางลัดสำหรับผู้ดูแลระบบ (เลี่ยง Alt+Shift เพราะชนกับสลับภาษาใน Windows)
-      // รองรับ: Ctrl+Shift+G หรือ Ctrl+Alt+G
-      const isG = event.key.toLowerCase() === "g";
-      const isCtrlShiftG = event.ctrlKey && event.shiftKey && isG;
-      const isCtrlAltG = event.ctrlKey && event.altKey && isG;
-      if (isCtrlShiftG || isCtrlAltG) {
-        event.preventDefault();
-        setIsIngestVisible((prev) => !prev);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, []);
-
   const handleClick = () => {
     startTransition(async () => {
       setSummaryStats(null);
       setTypeStats([]);
       setAgencySlices([]);
       setError(null);
+      setIsResultVisible(false);
 
       try {
-        const response = await fetch("/api/egp/announcements/ingest", {
+        const ingestUrl = new URL(
+          "/api/egp/announcements/ingest",
+          window.location.origin,
+        );
+        if (ingestToken) {
+          ingestUrl.searchParams.set("token", ingestToken);
+        }
+
+        const response = await fetch(ingestUrl.toString(), {
           method: "GET",
           cache: "no-store",
         });
@@ -102,6 +94,12 @@ export function IngestButton() {
         }
 
         if (!response.ok || data.error) {
+          if (response.status === 401 && !ingestToken) {
+            setError(
+              "Unauthorized: กรุณาตั้งค่า NEXT_PUBLIC_EGP_INGEST_SECRET ให้ตรงกับ EGP_INGEST_SECRET",
+            );
+            return;
+          }
           setError(data.error || "ดึงข้อมูลไม่สำเร็จ");
           return;
         }
@@ -121,6 +119,7 @@ export function IngestButton() {
           .sort((a, b) => b.total - a.total);
         setTypeStats(sortedTypeStats);
         setAgencySlices(data.byAgencies ?? data.byDepartment ?? []);
+        setIsResultVisible(true);
       } catch {
         setError("เกิดข้อผิดพลาดระหว่างดึงข้อมูลจาก e-GP");
       }
@@ -139,21 +138,27 @@ export function IngestButton() {
 
   return (
     <div className="mt-4 space-y-2">
-      {isIngestVisible && (
-        <button
-          type="button"
-          onClick={handleClick}
-          disabled={isPending}
-          className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-slate-950 shadow hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-700"
-        >
-          {isPending ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
-        </button>
-      )}
-      {summaryStats && (
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isPending}
+        className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-slate-950 shadow hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-700"
+      >
+        {isPending ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
+      </button>
+      {summaryStats && isResultVisible && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5">
-          <p className="mb-1 text-xs font-semibold text-emerald-700">
-            ดึงข้อมูลสำเร็จ
-          </p>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-emerald-700">ดึงข้อมูลสำเร็จ</p>
+            <button
+              type="button"
+              onClick={() => setIsResultVisible(false)}
+              className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-300 bg-white text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+              aria-label="ปิดสรุปผล"
+            >
+              ×
+            </button>
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
               เพิ่ม {summaryStats.created} รายการ
@@ -168,7 +173,7 @@ export function IngestButton() {
         </div>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
-      {agencySlices.length > 1 && (
+      {agencySlices.length > 1 && isResultVisible && (
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <p className="mb-2 text-xs font-semibold text-slate-700">
             สรุปตามหน่วยงาน
@@ -200,7 +205,7 @@ export function IngestButton() {
           {agencySlices[0].name}: {agencySlices[0].error}
         </p>
       )}
-      {typeStats.length > 0 && (
+      {typeStats.length > 0 && isResultVisible && (
         <div className="rounded-lg border border-emerald-200 bg-white p-3">
           <p className="mb-2 text-xs font-semibold text-slate-700">
             สรุปตามประเภทประกาศ

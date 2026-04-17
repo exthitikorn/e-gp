@@ -1,129 +1,177 @@
-## ตั้งเวลา Ingest e-GP อัตโนมัติทุกวัน 00:30 และ 12:30 (GNU/Linux + cron)
+## คู่มือตั้งเวลา Ingest e-GP อัตโนมัติ (00:00)
 
-> ระบบ: GNU/Linux 18.x  
-> จุดประสงค์: ให้ยิงเรียก `GET /api/egp/announcements/ingest` อัตโนมัติวันละ 2 ครั้ง
-
----
-
-## 1. เตรียมค่า Environment และ URL
-
-1. ตรวจสอบให้แน่ใจว่าใน `.env` มีค่า:
-
-   ```env
-   EGP_INGEST_SECRET=YOUR_SECRET_HERE
-   ```
-
-2. สมมติว่าโดเมนโปรดักชันคือ:
-
-   ```text
-   https://your-domain
-   ```
-
-3. URL ที่จะให้ cron เรียกคือ:
-
-   ```text
-   https://your-domain/api/egp/announcements/ingest?token=YOUR_SECRET_HERE
-   ```
-
-   > แทนที่ `YOUR_SECRET_HERE` ด้วยค่าจริงจาก `EGP_INGEST_SECRET`
+> ระบบเป้าหมาย: GNU/Linux + `cron`  
+> เป้าหมาย: เรียก `GET /api/egp/announcements/ingest` อัตโนมัติวันละ 1 ครั้ง  
+> เวลาอ้างอิงในเอกสารนี้: เวลาไทย (Asia/Bangkok)
 
 ---
 
-## 2. ติดตั้ง curl (ถ้ายังไม่มี)
+## 1) เตรียมค่าที่ต้องใช้
+
+กำหนดข้อมูล 2 ค่าให้พร้อมก่อน:
+
+- `BASE_URL` เช่น `https://your-domain`
+- `EGP_INGEST_SECRET` (ต้องตรงกับค่าที่ระบบ backend ใช้ตรวจ token)
+
+ตัวอย่างในไฟล์ `.env`:
+
+```env
+EGP_INGEST_SECRET=YOUR_SECRET_HERE
+```
+
+ตัวอย่าง URL ที่ endpoint จะถูกเรียกจริง:
+
+```text
+https://your-domain/api/egp/announcements/ingest?token=YOUR_SECRET_HERE
+```
+
+---
+
+## 2) ติดตั้งเครื่องมือที่จำเป็น
 
 ```bash
 sudo apt update
 sudo apt install curl -y
 ```
 
----
+ตรวจสอบว่าใช้งานได้:
 
-## 3. สร้าง/แก้ไข Cron Job
-
-1. เปิด `crontab` ของ user ที่ต้องการให้รัน (ควรเป็น user เดียวกับที่รันแอป หรือ user service):
-
-   ```bash
-   crontab -e
-   ```
-
-2. เพิ่มบรรทัดต่อไปนี้ (ปรับโดเมนและ secret ให้ตรงกับของจริง):
-
-   ```bash
-   30 0,12 * * * curl -sS "https://your-domain/api/egp/announcements/ingest?token=YOUR_SECRET_HERE" >> /var/log/egp_ingest.log 2>&1
-   ```
-
-   ความหมาย:
-
-   - `30 0,12 * * *` = รันเวลา **00:30** และ **12:30** ของทุกวัน
-   - `curl -sS "URL"` = ยิง HTTP GET ไปที่ ingest endpoint
-   - `>> /var/log/egp_ingest.log 2>&1` = เขียนทั้ง stdout และ stderr ลงไฟล์ log
-
-3. บันทึกไฟล์แล้วออกจาก editor (`:wq` สำหรับ vim, `Ctrl+X` → `Y` → `Enter` สำหรับ nano)
+```bash
+curl --version
+```
 
 ---
 
-## 4. ตรวจสอบว่า Cron ถูกบันทึกแล้ว
+## 3) ตั้งค่าแบบปลอดภัยด้วยสคริปต์ (แนะนำ)
 
-รันคำสั่ง:
+เพื่อหลีกเลี่ยงการใส่ secret ตรง ๆ ใน crontab ให้สร้างสคริปต์แยก:
+
+1. สร้างโฟลเดอร์และไฟล์สคริปต์
+
+```bash
+sudo mkdir -p /opt/egp
+sudo nano /opt/egp/run_ingest.sh
+```
+
+2. วางโค้ดนี้ในไฟล์ `/opt/egp/run_ingest.sh`
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_URL="https://your-domain"
+INGEST_SECRET="YOUR_SECRET_HERE"
+LOG_FILE="/var/log/egp_ingest.log"
+
+curl -fsS "${BASE_URL}/api/egp/announcements/ingest?token=${INGEST_SECRET}" >> "${LOG_FILE}" 2>&1
+```
+
+3. ตั้ง permission ให้รันได้และจำกัดการอ่านไฟล์
+
+```bash
+sudo chmod 700 /opt/egp/run_ingest.sh
+sudo chown root:root /opt/egp/run_ingest.sh
+```
+
+> ถ้าต้องการความปลอดภัยเพิ่ม: อ่าน secret จากไฟล์ที่ permission เข้มงวดแทนการเขียนค่าไว้ในสคริปต์
+
+---
+
+## 4) เพิ่ม Cron Job
+
+เปิด crontab:
+
+```bash
+crontab -e
+```
+
+เพิ่มบรรทัดนี้:
+
+```bash
+0 0 * * * /opt/egp/run_ingest.sh
+```
+
+ความหมาย:
+
+- `0 0 * * *` = รันทุกวันเวลา 00:00
+- เรียกสคริปต์ที่รวม logic และ logging ไว้แล้ว
+
+บันทึกไฟล์และออกจาก editor ตามที่ใช้งาน
+
+---
+
+## 5) ตรวจสอบว่าตั้ง cron สำเร็จ
 
 ```bash
 crontab -l
 ```
 
-ตรวจสอบว่ามีบรรทัด:
+ควรเห็นบรรทัด:
 
 ```bash
-30 0,12 * * * curl -sS "https://your-domain/api/egp/announcements/ingest?token=YOUR_SECRET_HERE" >> /var/log/egp_ingest.log 2>&1
+0 0 * * * /opt/egp/run_ingest.sh
 ```
 
 ---
 
-## 5. ทดสอบการเรียก Ingest ด้วยตนเอง
+## 6) ทดสอบก่อนใช้งานจริง
 
-1. ทดสอบเรียกจาก server ตรง ๆ หนึ่งครั้ง:
+ทดสอบสคริปต์ทันที:
 
-   ```bash
-   curl -v "https://your-domain/api/egp/announcements/ingest?token=YOUR_SECRET_HERE"
-   ```
+```bash
+/opt/egp/run_ingest.sh
+```
 
-2. ตรวจสอบผลลัพธ์ควรเป็น JSON ลักษณะ:
+ตรวจ log:
 
-   ```json
-   {
-     "created": 10,
-     "updated": 5,
-     "totalFromRss": 15
-   }
-   ```
+```bash
+tail -n 50 /var/log/egp_ingest.log
+```
 
-3. ตรวจสอบ log:
+ผลลัพธ์ที่คาดหวัง (ตัวอย่าง):
 
-   ```bash
-   tail -n 50 /var/log/egp_ingest.log
-   ```
-
----
-
-## 6. หมายเหตุเรื่อง Timezone
-
-- ถ้า server ตั้ง timezone เป็น **Asia/Bangkok (UTC+7)** อยู่แล้ว  
-  - Cron expression `30 0,12 * * *` จะหมายถึง 00:30 และ 12:30 ตามเวลาไทยตรง ๆ
-- ถ้า server เป็น **UTC** แต่ต้องการให้ตรงเวลาไทย:
-  - 00:30 เวลาไทย = 17:30 (วันก่อนหน้า) UTC
-  - 12:30 เวลาไทย = 05:30 UTC
-  - ตัวอย่าง cron (ถ้าเครื่องเป็น UTC):
-
-    ```bash
-    30 17,5 * * * curl -sS "https://your-domain/api/egp/announcements/ingest?token=YOUR_SECRET_HERE" >> /var/log/egp_ingest.log 2>&1
-    ```
+```json
+{
+  "created": 10,
+  "updated": 5,
+  "totalFromRss": 15
+}
+```
 
 ---
 
-## 7. Security Best Practices
+## 7) Timezone ให้ตรงเวลาไทย
 
-- อย่า hard‑code secret ลงใน script หรือแชร์ไฟล์ crontab ให้คนนอก
-- ถ้ามี reverse proxy / firewall:
-  - จำกัด IP ที่อนุญาตให้เรียก URL นี้ (เช่น ให้เรียกได้จาก IP ของ server ภายในเท่านั้น)
-- ตรวจสอบ log เป็นระยะ:
-  - ดู error ที่เกิดบ่อย ๆ (เช่น 401, 500) แล้วแก้ไขที่ระบบ ingest หรือ network
+ตรวจ timezone ของเครื่อง:
+
+```bash
+timedatectl
+```
+
+- ถ้าเป็น `Asia/Bangkok` อยู่แล้ว: ใช้ `0 0 * * *` ได้ตรงเวลาไทย
+- ถ้าเครื่องเป็น `UTC` แต่ต้องการให้ตรงเวลาไทย:
+  - 00:00 ICT = 17:00 UTC (วันก่อนหน้า)
+  - cron ที่ใช้คือ:
+
+```bash
+0 17 * * *
+```
+
+---
+
+## 8) Troubleshooting ที่พบบ่อย
+
+- **เรียกไม่ได้ (401/403):** token ไม่ตรงกับฝั่ง backend
+- **เรียกไม่ได้ (5xx):** backend ล่ม, DB มีปัญหา, หรือ timeout
+- **cron ไม่ทำงาน:** ตรวจ service ด้วย `systemctl status cron` (บาง distro ชื่อ `crond`)
+- **ไม่มี log:** ตรวจ permission ของ `/var/log/egp_ingest.log` และสิทธิ์ผู้รัน cron
+
+---
+
+## 9) Security Checklist ก่อนขึ้น Production
+
+- ไม่ commit ค่า secret ลง Git
+- จำกัดสิทธิ์ไฟล์สคริปต์ (`chmod 700`) และ owner ให้ชัดเจน
+- จำกัดการเข้าถึง endpoint ด้วย firewall / reverse proxy (allow เฉพาะแหล่งที่ไว้ใจ)
+- ตรวจ log เป็นระยะ และตั้ง alert เมื่อเจอ error ซ้ำ ๆ
 
