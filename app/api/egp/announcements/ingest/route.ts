@@ -59,8 +59,6 @@ interface AgencyIngestSlice {
 
 const EGP_INGEST_SECRET = process.env.EGP_INGEST_SECRET;
 const INGEST_JOB_TTL_MS = 30 * 60 * 1000;
-const RSS_FETCH_TIMEOUT_MS = 15_000;
-const RSS_FETCH_MAX_RETRIES = 1;
 const ingestJobs = new Map<
   string,
   {
@@ -141,63 +139,23 @@ function buildNoActiveAgencyResult(): IngestResult {
   };
 }
 
-function isRetryableFetchError(error: unknown): boolean {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  if (error instanceof TypeError) {
-    return true;
-  }
-
-  return (
-    error.name === "AbortError" ||
-    error.name === "TimeoutError" ||
-    error.message.toLowerCase().includes("timed out")
-  );
-}
-
 async function fetchXmlFromUrl(url: string): Promise<string> {
-  for (let attempt = 0; attempt <= RSS_FETCH_MAX_RETRIES; attempt += 1) {
-    try {
-      const response = await fetch(url, {
-        headers: {
-          Accept: "application/xml,text/xml;q=0.9,*/*;q=0.8",
-        },
-        cache: "no-store",
-        signal: AbortSignal.timeout(RSS_FETCH_TIMEOUT_MS),
-      });
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/xml,text/xml;q=0.9,*/*;q=0.8",
+    },
+    cache: "no-store",
+  });
 
-      if (!response.ok) {
-        const bodyText = await response.text();
-        throw new Error(
-          `e-GP RSS error ${response.status} for ${url}: ${bodyText.slice(0, 200)}`,
-        );
-      }
-
-      const buffer = await response.arrayBuffer();
-      return iconv.decode(Buffer.from(buffer), "win874");
-    } catch (error) {
-      const canRetry =
-        attempt < RSS_FETCH_MAX_RETRIES && isRetryableFetchError(error);
-      if (canRetry) {
-        continue;
-      }
-
-      if (
-        error instanceof Error &&
-        (error.name === "AbortError" || error.name === "TimeoutError")
-      ) {
-        throw new Error(
-          `e-GP RSS timeout after ${RSS_FETCH_TIMEOUT_MS}ms for ${url}`,
-        );
-      }
-
-      throw error;
-    }
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(
+      `e-GP RSS error ${response.status} for ${url}: ${bodyText.slice(0, 200)}`,
+    );
   }
 
-  throw new Error(`e-GP RSS fetch failed for ${url}`);
+  const buffer = await response.arrayBuffer();
+  return iconv.decode(Buffer.from(buffer), "win874");
 }
 
 async function fetchAllAnnouncementsFromEgpForAgency(params: {
