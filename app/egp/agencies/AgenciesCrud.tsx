@@ -224,7 +224,7 @@ export default function AgenciesCrud({ initialAgencies }: AgenciesCrudProps) {
                   setForm((f) => ({ ...f, deptId: e.target.value }))
                 }
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="RSS: ใช้แทน deptsubId ถ้ามีค่า"
+                placeholder="กรอกได้หลายค่า คั่นด้วย comma เช่น 1001,1002"
               />
             </div>
             <div>
@@ -242,7 +242,7 @@ export default function AgenciesCrud({ initialAgencies }: AgenciesCrudProps) {
                   setForm((f) => ({ ...f, deptsubId: e.target.value }))
                 }
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="ใช้เมื่อไม่ระบุ deptId"
+                placeholder="กรอกได้หลายค่า คั่นด้วย comma เช่น 2001,2002"
               />
             </div>
             <div className="sm:col-span-2">
@@ -266,8 +266,7 @@ export default function AgenciesCrud({ initialAgencies }: AgenciesCrudProps) {
             </div>
           </div>
           <p className="mt-3 text-xs text-slate-500">
-            ต้องระบุ deptId หรือ deptsubId อย่างน้อยหนึ่งค่า — ตามคู่มือ RSS
-            ถ้ามี deptId ระบบจะใช้ deptId ในการดึง RSS
+            ต้องระบุ deptId หรือ deptsubId อย่างน้อยหนึ่งค่า และแต่ละช่องรองรับหลายค่า (คั่นด้วย comma)
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button

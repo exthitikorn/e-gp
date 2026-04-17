@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import iconv from "iconv-lite";
 import {
+  buildRssDeptScopes,
   buildEgpRssUrl,
   mapRssToAnnouncements,
   normalizeRssDeptQueryParams,
@@ -45,6 +46,16 @@ interface AgencyIngestSlice {
 }
 
 const EGP_INGEST_SECRET = process.env.EGP_INGEST_SECRET;
+
+function ndjsonResponse(payload: IngestResult, status: number) {
+  // NDJSON: 1 JSON object ต่อ 1 บรรทัด
+  return new NextResponse(`${JSON.stringify(payload)}\n`, {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+    },
+  });
+}
 
 const ALL_EGP_ANNOUNCE_TYPES: EgpAnnounceType[] = [
   "P0",
@@ -95,25 +106,27 @@ async function fetchAllAnnouncementsFromEgpForAgency(params: {
   deptId: string | null;
   deptsubId: string | null;
 }): Promise<EgpAnnouncement[]> {
-  const rss = normalizeRssDeptQueryParams({
+  const scopes = buildRssDeptScopes({
     deptId: params.deptId,
     deptsubId: params.deptsubId,
   });
-
-  const scopeKey = rssScopeKeyFromDeptParams(
-    params.deptId,
-    params.deptsubId,
+  const urls = scopes.flatMap((scope) =>
+    ALL_EGP_ANNOUNCE_TYPES.map((anounceType) => ({
+      scopeKey: scope.scopeKey,
+      url: buildEgpRssUrl({
+        deptId: scope.deptId,
+        deptsubId: scope.deptsubId,
+        anounceType,
+      }),
+    })),
   );
 
-  const urls = ALL_EGP_ANNOUNCE_TYPES.map((anounceType) =>
-    buildEgpRssUrl({
-      deptId: rss.deptId,
-      deptsubId: rss.deptsubId,
-      anounceType,
-    }),
+  const xmlTexts = await Promise.all(
+    urls.map(async (item) => ({
+      scopeKey: item.scopeKey,
+      xmlText: await fetchXmlFromUrl(item.url),
+    })),
   );
-
-  const xmlTexts = await Promise.all(urls.map((url) => fetchXmlFromUrl(url)));
 
   const { XMLParser } = await import("fast-xml-parser");
   const parser = new XMLParser({
@@ -122,10 +135,10 @@ async function fetchAllAnnouncementsFromEgpForAgency(params: {
     textNodeName: "#text",
   });
 
-  const allAnnouncementsArrays = xmlTexts.map((xmlText) => {
-    const parsed = parser.parse(xmlText) as ParsedRss;
+  const allAnnouncementsArrays = xmlTexts.map((item) => {
+    const parsed = parser.parse(item.xmlText) as ParsedRss;
     return mapRssToAnnouncements(parsed, {
-      rssScopeKeyForStableId: scopeKey || undefined,
+      rssScopeKeyForStableId: item.scopeKey || undefined,
     });
   });
 
@@ -147,7 +160,7 @@ export async function GET(request: Request) {
         byDepartment: [],
         error: "Unauthorized",
       };
-      return NextResponse.json(payload, { status: 401 });
+      return ndjsonResponse(payload, 401);
     }
   }
 
@@ -167,7 +180,7 @@ export async function GET(request: Request) {
       error:
         "ไม่มีหน่วยงานที่ status = 1 (ใช้งาน) ในระบบ — ให้เพิ่มแถวใน EgpAgency (deptId และ/หรือ deptsubId) ก่อนรัน ingest",
     };
-    return NextResponse.json(payload, { status: 422 });
+    return ndjsonResponse(payload, 422);
   }
 
   const byAgencies: AgencyIngestSlice[] = [];
@@ -177,6 +190,10 @@ export async function GET(request: Request) {
   let totalFromRss = 0;
 
   for (const agency of activeAgencies) {
+    const scopes = buildRssDeptScopes({
+      deptId: agency.deptId,
+      deptsubId: agency.deptsubId,
+    });
     const scopeKey = rssScopeKeyFromDeptParams(agency.deptId, agency.deptsubId);
     const rss = normalizeRssDeptQueryParams({
       deptId: agency.deptId,
@@ -195,7 +212,7 @@ export async function GET(request: Request) {
       byAnnounceType: {},
     };
 
-    if (!scopeKey) {
+    if (!scopeKey || scopes.length === 0) {
       slice.error =
         "ต้องระบุ deptId (หน่วยงานภาครัฐ) หรือ deptsubId (หน่วยจัดซื้อย่อย) อย่างน้อยหนึ่งค่า";
       byAgencies.push(slice);
@@ -248,5 +265,5 @@ export async function GET(request: Request) {
     byDepartment: byAgencies,
   };
 
-  return NextResponse.json(payload, { status: 200 });
+  return ndjsonResponse(payload, 200);
 }

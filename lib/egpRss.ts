@@ -45,6 +45,18 @@ export interface BuildEgpRssUrlParams {
   announceDate?: string;
 }
 
+function splitDeptCodes(value?: string | null): string[] {
+  if (!value) return [];
+  return Array.from(
+    new Set(
+      value
+        .split(/[,\n;\r]+/u)
+        .map((x) => x.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
 /** คีย์แยก scope ของ RSS สำหรับสร้าง id ประกาศให้ไม่ชนกันระหว่างหน่วยงาน */
 export interface MapRssToAnnouncementsOptions {
   rssScopeKeyForStableId?: string;
@@ -67,6 +79,39 @@ export function normalizeRssDeptQueryParams(params: {
     return { deptsubId: s };
   }
   return {};
+}
+
+export interface RssDeptScope {
+  deptId?: string;
+  deptsubId?: string;
+  rssUses: "deptId" | "deptsubId";
+  scopeKey: string;
+}
+
+/** แตกค่า deptId/deptsubId ที่คั่นด้วย comma แล้วคืนรายการ scope สำหรับยิง RSS */
+export function buildRssDeptScopes(params: {
+  deptId?: string | null;
+  deptsubId?: string | null;
+}): RssDeptScope[] {
+  const deptIds = splitDeptCodes(params.deptId);
+  const deptsubIds = splitDeptCodes(params.deptsubId);
+
+  const scopes: RssDeptScope[] = [];
+  for (const d of deptIds) {
+    scopes.push({
+      deptId: d,
+      rssUses: "deptId",
+      scopeKey: `d:${d}`,
+    });
+  }
+  for (const s of deptsubIds) {
+    scopes.push({
+      deptsubId: s,
+      rssUses: "deptsubId",
+      scopeKey: `s:${s}`,
+    });
+  }
+  return scopes;
 }
 
 /** สร้างคีย์สำหรับ stable id / แยกแถวหน่วยงาน (รูปแบบ d:รหัส หรือ s:รหัส) */

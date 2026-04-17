@@ -103,7 +103,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
       if (e.code === "P2002") {
         return NextResponse.json(
-          { error: "รหัส deptsubId นี้มีในระบบแล้ว (ต้องไม่ซ้ำ)" },
+          { error: "พบข้อมูลซ้ำกับข้อจำกัด unique ในระบบ" },
           { status: 409 },
         );
       }

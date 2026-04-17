@@ -4,20 +4,20 @@ import { getLandingStats } from "@/lib/egpLandingStats";
 /** ดึงสถิติจาก DB ทุกครั้งที่โหลดหน้า — ไม่แคชแบบ static หลัง build */
 export const dynamic = "force-dynamic";
 
-function isRssWindowOpenInBangkok(date: Date): boolean {
-  const utcHour = date.getUTCHours();
-  const utcMinute = date.getUTCMinutes();
+// function isRssWindowOpenInBangkok(date: Date): boolean {
+//   const utcHour = date.getUTCHours();
+//   const utcMinute = date.getUTCMinutes();
 
-  const bangkokHour = (utcHour + 7) % 24;
-  const bangkokMinute = utcMinute;
+//   const bangkokHour = (utcHour + 7) % 24;
+//   const bangkokMinute = utcMinute;
 
-  const afterOpen =
-    bangkokHour > 17 || (bangkokHour === 17 && bangkokMinute >= 1);
-  const beforeClose =
-    bangkokHour < 8 || (bangkokHour === 8 && bangkokMinute <= 29);
+//   const afterOpen =
+//     bangkokHour > 17 || (bangkokHour === 17 && bangkokMinute >= 1);
+//   const beforeClose =
+//     bangkokHour < 8 || (bangkokHour === 8 && bangkokMinute <= 29);
 
-  return afterOpen || beforeClose;
-}
+//   return afterOpen || beforeClose;
+// }
 
 function formatStat(value: number): string {
   return value.toLocaleString("th-TH");
@@ -66,7 +66,12 @@ function parseMonthParam(
 
   const year = Number(match[1]);
   const month = Number(match[2]);
-  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+  if (
+    !Number.isFinite(year) ||
+    !Number.isFinite(month) ||
+    month < 1 ||
+    month > 12
+  ) {
     return fallback;
   }
 
@@ -109,7 +114,6 @@ export default async function Home({
       0,
     ),
   );
-  const isRssOpen = isRssWindowOpenInBangkok(now);
   const stats = await getLandingStats({ calendarMonth: selectedMonth });
   const calendarByDate = new Map(
     stats.procurementCalendar.map((item) => [
@@ -188,9 +192,7 @@ export default async function Home({
             <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/90 text-[10px] font-bold text-white">
               e
             </span>
-            <span className="text-emerald-600">
-              ระบบจัดซื้อจัดจ้าง
-            </span>
+            <span className="text-emerald-600">ระบบจัดซื้อจัดจ้าง</span>
             <span className="h-1 w-1 rounded-full bg-slate-500" />
             <span className="text-slate-500">
               โปร่งใส ตรวจสอบได้ เพื่อประชาชนและบุคลากร
@@ -202,9 +204,9 @@ export default async function Home({
               ศูนย์กลางโครงการจัดซื้อจัดจ้าง
             </h1>
             <p className="max-w-xl text-pretty text-sm leading-relaxed text-slate-600 sm:text-base">
-              แสดงข้อมูลโครงการจัดซื้อจัดจ้างจากระบบ e-GP
-              ในที่เดียว ค้นหาและตรวจสอบย้อนหลังได้สะดวก ช่วยให้การจัดหาพัสดุ
-              เวชภัณฑ์ และครุภัณฑ์ทางการแพทย์เป็นไปอย่างโปร่งใส และตรวจสอบได้
+              แสดงข้อมูลโครงการจัดซื้อจัดจ้างจากระบบ e-GP ในที่เดียว
+              ค้นหาและตรวจสอบย้อนหลังได้สะดวก ช่วยให้การจัดหาพัสดุ เวชภัณฑ์
+              และครุภัณฑ์ทางการแพทย์เป็นไปอย่างโปร่งใส และตรวจสอบได้
             </p>
           </div>
 
@@ -233,35 +235,11 @@ export default async function Home({
           <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-[0_24px_65px_-32px_rgba(15,23,42,0.35)] backdrop-blur">
             <header className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
-                  ภาพรวมวันนี้
-                </p>
-                <p className="text-sm text-slate-600">
-                  แดชบอร์ดสรุปข้อมูล
-                </p>
-              </div>
-              <div className="text-right text-[11px] leading-snug text-slate-600">
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[11px] font-medium ring-1 ${
-                    isRssOpen
-                      ? "bg-emerald-50 text-emerald-700 ring-emerald-200"
-                      : "bg-amber-50 text-amber-700 ring-amber-200"
-                  }`}
-                >
-                  {isRssOpen ? "สถานะ RSS: เปิดเชื่อมต่อ" : "สถานะ RSS: ปิดชั่วคราว"}
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      isRssOpen ? "bg-emerald-500" : "bg-amber-500"
-                    }`}
-                  />
-                </span>
-                <p className="mt-1">
-                  ระบบ e-GP เปิดให้เชื่อมต่อ RSS ระหว่างเวลา 17.01 – 08.29 น.
-                </p>
+                <p className="text-sm text-slate-600">แดชบอร์ดสรุปข้อมูล</p>
               </div>
             </header>
 
-            <div className="mb-3 grid grid-cols-1 gap-2 text-[11px] text-slate-600 sm:grid-cols-3">
+            <div className="mb-3 grid grid-cols-1 gap-2 text-[11px] text-slate-600 sm:grid-cols-2">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 รายการในปฏิทินเดือนนี้:{" "}
                 <span className="font-semibold text-slate-900">
@@ -271,13 +249,9 @@ export default async function Home({
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 รายการล่าสุด:{" "}
                 <span className="font-semibold text-slate-900">
-                  {stats.lastUpdatedAt ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.` : "-"}
-                </span>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                จำนวนประกาศทั้งหมด:{" "}
-                <span className="font-semibold text-slate-900">
-                  {formatStat(stats.totalAnnouncementsCount)}
+                  {stats.lastUpdatedAt
+                    ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.`
+                    : "-"}
                 </span>
               </div>
             </div>
@@ -423,17 +397,20 @@ export default async function Home({
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(cell.data?.planCount ?? 0) > 0 ? (
                           <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium leading-none text-emerald-700">
-                            แผนการจัดซื้อ ({formatStat(cell.data?.planCount ?? 0)})
+                            แผนการจัดซื้อ (
+                            {formatStat(cell.data?.planCount ?? 0)})
                           </span>
                         ) : null}
                         {(cell.data?.torDraftCount ?? 0) > 0 ? (
                           <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium leading-none text-amber-700">
-                            ร่างประชาพิจารณ์ TOR ({formatStat(cell.data?.torDraftCount ?? 0)})
+                            ร่างประชาพิจารณ์ TOR (
+                            {formatStat(cell.data?.torDraftCount ?? 0)})
                           </span>
                         ) : null}
                         {(cell.data?.invitationCount ?? 0) > 0 ? (
                           <span className="rounded-full bg-sky-100 px-2 py-1 text-xs font-medium leading-none text-sky-700">
-                            ประกาศเชิญชวน ({formatStat(cell.data?.invitationCount ?? 0)})
+                            ประกาศเชิญชวน (
+                            {formatStat(cell.data?.invitationCount ?? 0)})
                           </span>
                         ) : null}
                       </div>
@@ -445,14 +422,20 @@ export default async function Home({
           </div>
           {stats.procurementCalendar.length === 0 ? (
             <p className="mt-2 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
-              ไม่พบข้อมูลย้อนหลังที่เข้ากลุ่มแผนการจัดซื้อ, ร่าง TOR หรือประกาศเชิญชวน
+              ไม่พบข้อมูลย้อนหลังที่เข้ากลุ่มแผนการจัดซื้อ, ร่าง TOR
+              หรือประกาศเชิญชวน
             </p>
           ) : null}
           <div className="mt-3 flex flex-col gap-1 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-            <p>* ร่างประชาพิจารณ์และประกาศเชิญชวนอัพเดทข้อมูลตามรอบดึงข้อมูลจากกรมบัญชีกลาง</p>
+            <p>
+              *
+              ร่างประชาพิจารณ์และประกาศเชิญชวนอัพเดทข้อมูลตามรอบดึงข้อมูลจากกรมบัญชีกลาง
+            </p>
             <p>
               ข้อมูลปรับปรุง ณ{" "}
-              {stats.lastUpdatedAt ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.` : "-"}
+              {stats.lastUpdatedAt
+                ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.`
+                : "-"}
             </p>
           </div>
         </div>

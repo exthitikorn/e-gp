@@ -374,9 +374,9 @@ export default async function ProjectDetailPage({
                     <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       ลิงก์ e-GP
                     </th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
+                    {/* <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       อ่าน/บันทึกจากเอกสาร
-                    </th>
+                    </th> */}
                   </tr>
                 </thead>
                 <tbody>
@@ -418,13 +418,13 @@ export default async function ProjectDetailPage({
                             <span className="text-[11px] text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 align-top">
+                        {/* <td className="px-4 py-2 align-top">
                           <PdfParseButton
                             announcementId={type.id}
                             announceType={type.announceType}
                             canParse={canOpen}
                           />
-                        </td>
+                        </td> */}
                       </tr>
                     );
                   })}

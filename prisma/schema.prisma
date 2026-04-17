@@ -11,10 +11,10 @@ datasource db {
 model EgpAgency {
   id   String @id @default(cuid()) @db.VarChar(191)
   name String @db.VarChar(512)
-  /// รหัสหน่วยงานภาครัฐ — พารามิเตอร์ RSS `deptId` (ถ้ามีจะใช้แทน deptsubId)
-  deptId String? @db.VarChar(191)
-  /// รหัสหน่วยจัดซื้อย่อย — พารามิเตอร์ RSS `deptsubId` (ใช้เมื่อไม่ระบุ deptId)
-  deptsubId String? @unique @db.VarChar(191)
+  /// รหัสหน่วยงานภาครัฐ (`deptId`) รองรับหลายค่า โดยคั่นด้วย comma
+  deptId String? @db.Text
+  /// รหัสหน่วยจัดซื้อย่อย (`deptsubId`) รองรับหลายค่า โดยคั่นด้วย comma
+  deptsubId String? @db.Text
   /// 0 = ไม่ใช้งาน, 1 = ใช้งาน (รวมใน ingest)
   status Int @default(1) @db.TinyInt
 

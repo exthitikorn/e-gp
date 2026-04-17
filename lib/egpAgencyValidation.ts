@@ -1,11 +1,25 @@
 const MAX_NAME = 512;
-const MAX_CODE = 191;
+const MAX_CODE = 4000;
 
 function trimOrNull(v: unknown): string | null {
   if (v === null || v === undefined) return null;
   if (typeof v !== "string") return null;
   const t = v.trim();
   return t.length > 0 ? t : null;
+}
+
+function normalizeCodesCsv(v: unknown): string | null {
+  const t = trimOrNull(v);
+  if (!t) return null;
+  const uniqueCodes = Array.from(
+    new Set(
+      t
+        .split(/[,\n;\r]+/u)
+        .map((x) => x.trim())
+        .filter(Boolean),
+    ),
+  );
+  return uniqueCodes.length > 0 ? uniqueCodes.join(",") : null;
 }
 
 function parseStatus(v: unknown): number | null {
@@ -42,8 +56,8 @@ export function validateAgencyCreateBody(body: unknown):
     return { ok: false, error: `ชื่อหน่วยงานยาวเกิน ${MAX_NAME} ตัวอักษร` };
   }
 
-  const deptId = trimOrNull(o.deptId);
-  const deptsubId = trimOrNull(o.deptsubId);
+  const deptId = normalizeCodesCsv(o.deptId);
+  const deptsubId = normalizeCodesCsv(o.deptsubId);
 
   if (deptId && deptId.length > MAX_CODE) {
     return { ok: false, error: `deptId ยาวเกิน ${MAX_CODE} ตัวอักษร` };
@@ -106,10 +120,10 @@ export function validateAgencyPatchBody(body: unknown):
   }
 
   if ("deptId" in o) {
-    out.deptId = trimOrNull(o.deptId);
+    out.deptId = normalizeCodesCsv(o.deptId);
   }
   if ("deptsubId" in o) {
-    out.deptsubId = trimOrNull(o.deptsubId);
+    out.deptsubId = normalizeCodesCsv(o.deptsubId);
   }
 
   if ("status" in o) {
