@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 interface AgencyIngestSlice {
   agencyId: string;
@@ -57,7 +57,7 @@ const POLL_INTERVAL_MS = 2500;
 const MAX_POLL_ATTEMPTS = 180;
 
 export function IngestButton() {
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
   const [isResultVisible, setIsResultVisible] = useState(false);
   const [summaryStats, setSummaryStats] = useState<{
     created: number;
@@ -75,120 +75,123 @@ export function IngestButton() {
   const [agencySlices, setAgencySlices] = useState<AgencyIngestSlice[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const handleClick = () => {
-    startTransition(async () => {
-      setSummaryStats(null);
-      setTypeStats([]);
-      setAgencySlices([]);
-      setError(null);
-      setIsResultVisible(false);
+  const handleClick = async () => {
+    if (isLoading) {
+      return;
+    }
 
-      try {
-        const baseIngestUrl = new URL(
-          "/api/egp/announcements/ingest",
-          window.location.origin,
-        );
-        if (ingestToken) {
-          baseIngestUrl.searchParams.set("token", ingestToken);
-        }
+    setIsLoading(true);
+    setSummaryStats(null);
+    setTypeStats([]);
+    setAgencySlices([]);
+    setError(null);
+    setIsResultVisible(false);
 
-        const startUrl = new URL(baseIngestUrl.toString());
-        startUrl.searchParams.set("async", "1");
+    try {
+      const baseIngestUrl = new URL(
+        "/api/egp/announcements/ingest",
+        window.location.origin,
+      );
+      if (ingestToken) {
+        baseIngestUrl.searchParams.set("token", ingestToken);
+      }
 
-        const startResponse = await fetch(startUrl.toString(), {
-          method: "GET",
-          cache: "no-store",
-        });
-        const startData: IngestJobResponse = await startResponse.json();
+      const startUrl = new URL(baseIngestUrl.toString());
+      startUrl.searchParams.set("async", "1");
 
-        if (startResponse.status === 401) {
-          if (!ingestToken) {
-            setError(
-              "Unauthorized: กรุณาตั้งค่า NEXT_PUBLIC_EGP_INGEST_SECRET ให้ตรงกับ EGP_INGEST_SECRET",
-            );
-            return;
-          }
-          setError(startData.result?.error || "Unauthorized");
-          return;
-        }
+      const startResponse = await fetch(startUrl.toString(), {
+        method: "GET",
+        cache: "no-store",
+      });
+      const startData: IngestJobResponse = await startResponse.json();
 
-        if (!startResponse.ok || !startData.job?.jobId) {
-          setError(startData.result?.error || "เริ่มงาน ingest ไม่สำเร็จ");
-          return;
-        }
-
-        let ingestResult: IngestResult | undefined;
-        let ingestStatus: IngestJobStatus["status"] = startData.job.status;
-
-        for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
-          const statusUrl = new URL(baseIngestUrl.toString());
-          statusUrl.searchParams.set("jobId", startData.job.jobId);
-
-          const statusResponse = await fetch(statusUrl.toString(), {
-            method: "GET",
-            cache: "no-store",
-          });
-          const statusData: IngestJobResponse = await statusResponse.json();
-
-          ingestStatus = statusData.job?.status ?? "failed";
-          ingestResult = statusData.result;
-
-          if (ingestStatus !== "running") {
-            break;
-          }
-
-          await new Promise((resolve) => {
-            setTimeout(resolve, POLL_INTERVAL_MS);
-          });
-        }
-
-        if (ingestStatus === "running") {
+      if (startResponse.status === 401) {
+        if (!ingestToken) {
           setError(
-            "งาน ingest ยังไม่เสร็จภายในเวลาที่กำหนด กรุณาลองใหม่อีกครั้งเพื่อตรวจสถานะ",
+            "Unauthorized: กรุณาตั้งค่า NEXT_PUBLIC_EGP_INGEST_SECRET ให้ตรงกับ EGP_INGEST_SECRET",
           );
           return;
         }
-
-        if (!ingestResult) {
-          setError("ไม่ได้รับผลลัพธ์จากงาน ingest");
-          return;
-        }
-
-        if (ingestResult.error) {
-          if (
-            ingestResult.error.includes("ไม่มีหน่วยงานที่ status = 1")
-          ) {
-            setError(
-              "ยังไม่มีหน่วยงานที่ status = 1 ในฐานข้อมูล — ให้เพิ่ม EgpAgency ก่อน",
-            );
-            return;
-          }
-          setError(ingestResult.error || "ดึงข้อมูลไม่สำเร็จ");
-          return;
-        }
-
-        setSummaryStats({
-          created: ingestResult.created,
-          updated: ingestResult.updated,
-          totalFromRss: ingestResult.totalFromRss,
-        });
-        const sortedTypeStats = Object.entries(ingestResult.byAnnounceType ?? {})
-          .map(([type, stats]) => ({
-            type,
-            created: stats.created,
-            updated: stats.updated,
-            total: stats.total,
-          }))
-          .sort((a, b) => b.total - a.total);
-        setTypeStats(sortedTypeStats);
-        setAgencySlices(
-          ingestResult.byAgencies ?? ingestResult.byDepartment ?? [],
-        );
-        setIsResultVisible(true);
-      } catch {
-        setError("เกิดข้อผิดพลาดระหว่างดึงข้อมูลจาก e-GP");
+        setError(startData.result?.error || "Unauthorized");
+        return;
       }
-    });
+
+      if (!startResponse.ok || !startData.job?.jobId) {
+        setError(startData.result?.error || "เริ่มงาน ingest ไม่สำเร็จ");
+        return;
+      }
+
+      let ingestResult: IngestResult | undefined;
+      let ingestStatus: IngestJobStatus["status"] = startData.job.status;
+
+      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+        const statusUrl = new URL(baseIngestUrl.toString());
+        statusUrl.searchParams.set("jobId", startData.job.jobId);
+
+        const statusResponse = await fetch(statusUrl.toString(), {
+          method: "GET",
+          cache: "no-store",
+        });
+        const statusData: IngestJobResponse = await statusResponse.json();
+
+        ingestStatus = statusData.job?.status ?? "failed";
+        ingestResult = statusData.result;
+
+        if (ingestStatus !== "running") {
+          break;
+        }
+
+        await new Promise((resolve) => {
+          setTimeout(resolve, POLL_INTERVAL_MS);
+        });
+      }
+
+      if (ingestStatus === "running") {
+        setError(
+          "งาน ingest ยังไม่เสร็จภายในเวลาที่กำหนด กรุณาลองใหม่อีกครั้งเพื่อตรวจสถานะ",
+        );
+        return;
+      }
+
+      if (!ingestResult) {
+        setError("ไม่ได้รับผลลัพธ์จากงาน ingest");
+        return;
+      }
+
+      if (ingestResult.error) {
+        if (ingestResult.error.includes("ไม่มีหน่วยงานที่ status = 1")) {
+          setError(
+            "ยังไม่มีหน่วยงานที่ status = 1 ในฐานข้อมูล — ให้เพิ่ม EgpAgency ก่อน",
+          );
+          return;
+        }
+        setError(ingestResult.error || "ดึงข้อมูลไม่สำเร็จ");
+        return;
+      }
+
+      setSummaryStats({
+        created: ingestResult.created,
+        updated: ingestResult.updated,
+        totalFromRss: ingestResult.totalFromRss,
+      });
+      const sortedTypeStats = Object.entries(ingestResult.byAnnounceType ?? {})
+        .map(([type, stats]) => ({
+          type,
+          created: stats.created,
+          updated: stats.updated,
+          total: stats.total,
+        }))
+        .sort((a, b) => b.total - a.total);
+      setTypeStats(sortedTypeStats);
+      setAgencySlices(
+        ingestResult.byAgencies ?? ingestResult.byDepartment ?? [],
+      );
+      setIsResultVisible(true);
+    } catch {
+      setError("เกิดข้อผิดพลาดระหว่างดึงข้อมูลจาก e-GP");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   function rssLabel(slice: AgencyIngestSlice): string {
@@ -206,10 +209,10 @@ export function IngestButton() {
       <button
         type="button"
         onClick={handleClick}
-        disabled={isPending}
+        disabled={isLoading}
         className="inline-flex items-center rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-medium text-slate-950 shadow hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-emerald-700"
       >
-        {isPending ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
+        {isLoading ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
       </button>
       {summaryStats && isResultVisible && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5">
