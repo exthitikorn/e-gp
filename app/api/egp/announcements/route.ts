@@ -52,10 +52,12 @@ export async function GET(request: Request) {
       return NextResponse.json(payload, { status: 502 });
     }
 
+
+
     const buffer = await response.arrayBuffer();
     const xmlText = iconv.decode(Buffer.from(buffer), "win874");
     // console.log("[EGP RSS RAW XML]:", xmlText);
-
+    
     const { XMLParser } = await import("fast-xml-parser");
     const parser = new XMLParser({
       ignoreAttributes: false,

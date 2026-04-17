@@ -158,8 +158,6 @@ export function buildEgpRssUrl(params: BuildEgpRssUrlParams): string {
     url.searchParams.set("announceDate", params.announceDate);
   }
 
-  console.log(url.toString());
-
   return url.toString();
 }
 

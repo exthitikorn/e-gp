@@ -147,7 +147,6 @@ async function fetchAllAnnouncementsFromEgpForAgency(params: {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-
   if (EGP_INGEST_SECRET) {
     const token = url.searchParams.get("token");
     if (!token || token !== EGP_INGEST_SECRET) {
@@ -225,6 +224,8 @@ export async function GET(request: Request) {
         deptsubId: agency.deptsubId,
       });
 
+      console.log("announcements:", announcements);
+
       slice.totalFromRss = announcements.length;
       totalFromRss += announcements.length;
 
@@ -244,6 +245,7 @@ export async function GET(request: Request) {
       totalUpdated += updated;
       mergeByAnnounceType(mergedByType, byAnnounceType);
     } catch (err) {
+      console.error(err);
       slice.error =
         err instanceof Error ? err.message : "Unknown error";
     }
