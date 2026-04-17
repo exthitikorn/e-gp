@@ -133,7 +133,7 @@ export default async function AnnouncementsPage({
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             โครงการจัดซื้อจัดจ้าง
           </h1>
-          <div className="hidden space-y-2">
+          <div className="space-y-2">
             <IngestButton />
           </div>
         </header>

@@ -131,7 +131,7 @@ export function rssScopeKeyFromDeptParams(
 }
 
 const DEFAULT_EGP_RSS_BASE_URL =
-  "http://process3.gprocurement.go.th/EPROCRssFeedWeb/egpannouncerss.xml";
+  "https://process3.gprocurement.go.th/EPROCRssFeedWeb/egpannouncerss.xml";
 
 export function buildEgpRssUrl(params: BuildEgpRssUrlParams): string {
   const url = new URL(params.baseUrl ?? DEFAULT_EGP_RSS_BASE_URL);
@@ -157,6 +157,8 @@ export function buildEgpRssUrl(params: BuildEgpRssUrlParams): string {
   if (params.announceDate) {
     url.searchParams.set("announceDate", params.announceDate);
   }
+
+  console.log(url.toString());
 
   return url.toString();
 }
