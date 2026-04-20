@@ -74,7 +74,7 @@ const EGP_INGEST_SECRET = process.env.EGP_INGEST_SECRET;
 const INGEST_JOB_TTL_MS = 30 * 60 * 1000;
 
 /** ดึง RSS หลาย URL พร้อมกันต่อหน่วยงาน — 30 วินาทีมักไม่พอ */
-const DEFAULT_AGENCY_TIMEOUT_MS = 30_000;
+const DEFAULT_AGENCY_TIMEOUT_MS = 10_000;
 const INGEST_AGENCY_TIMEOUT_MS = (() => {
   const raw = process.env.EGP_INGEST_AGENCY_TIMEOUT_MS?.trim();
   if (!raw) {
@@ -403,7 +403,7 @@ async function runIngest(jobId?: string): Promise<IngestResult> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       if (attempt === 1) {
         console.warn(
-          `[egp/ingest] รีทรีหน่วยงาน "${agency.name}" (ครั้งที่ 2) หลังจากล้มเหลวครั้งแรก`,
+          `[egp/ingest] Retry หน่วยงาน "${agency.name}" (ครั้งที่ 2) หลังจากล้มเหลวครั้งแรก`,
         );
       }
 

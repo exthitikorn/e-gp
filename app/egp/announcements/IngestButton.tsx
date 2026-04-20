@@ -314,165 +314,184 @@ export function IngestButton() {
         {isLoading ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
       </button>
       {isLoading && ingestProgress && (
-        <div className="max-w-md space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-[10px] font-medium text-slate-500">
-              ความคืบหน้า
-            </span>
-            {ingestProgress.fetchStartedAt ? (
-              <span
-                className="font-mono text-[11px] tabular-nums text-slate-600"
-                title="นับจากเริ่มดึงข้อมูลจาก e-GP"
-              >
-                {formatElapsedSince(
-                  ingestProgress.fetchStartedAt,
-                  ingestElapsedNow,
-                )}
-              </span>
-            ) : (
-              <span className="text-[10px] text-slate-400">รอเริ่มดึง…</span>
-            )}
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
-              style={{ width: `${progressPercent(ingestProgress)}%` }}
-            />
-          </div>
-          <p className="text-[11px] leading-snug text-slate-700">
-            {progressDescription(ingestProgress)}
-          </p>
-        </div>
-      )}
-      {summaryStats && isResultVisible && (
         <div
-          className={
-            summaryStats.isEmptyRound
-              ? "rounded-lg border border-amber-200 bg-amber-50 p-2.5"
-              : "rounded-lg border border-emerald-200 bg-emerald-50 p-2.5"
-          }
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="สถานะความคืบหน้าการดึงข้อมูลจาก e-GP"
         >
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <p
-              className={
-                summaryStats.isEmptyRound
-                  ? "text-xs font-semibold text-amber-900"
-                  : "text-xs font-semibold text-emerald-700"
-              }
-            >
-              {summaryStats.isEmptyRound
-                ? "รอบนี้ไม่มีข้อมูลจาก RSS"
-                : "ดึงข้อมูลสำเร็จ"}
+          <div className="w-full max-w-md space-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-slate-600">
+                ความคืบหน้า
+              </span>
+              {ingestProgress.fetchStartedAt ? (
+                <span
+                  className="font-mono text-[11px] tabular-nums text-slate-600"
+                  title="นับจากเริ่มดึงข้อมูลจาก e-GP"
+                >
+                  {formatElapsedSince(
+                    ingestProgress.fetchStartedAt,
+                    ingestElapsedNow,
+                  )}
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400">รอเริ่มดึง…</span>
+              )}
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
+                style={{ width: `${progressPercent(ingestProgress)}%` }}
+              />
+            </div>
+            <p className="text-xs leading-snug text-slate-700">
+              {progressDescription(ingestProgress)}
             </p>
-            <button
-              type="button"
-              onClick={() => setIsResultVisible(false)}
-              className={
-                summaryStats.isEmptyRound
-                  ? "inline-flex h-5 w-5 items-center justify-center rounded border border-amber-300 bg-white text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
-                  : "inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-300 bg-white text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
-              }
-              aria-label="ปิดสรุปผล"
-            >
-              ×
-            </button>
-          </div>
-          {summaryStats.isEmptyRound && (
-            <p className="mb-2 text-[11px] leading-snug text-amber-950/80">
-              งาน ingest จบปกติแต่ไม่มีรายการจาก RSS และไม่มีแถวใหม่/แก้ไขใน DB
-              — มักเกิดเมื่อ RSS ว่าง หน่วยงานตั้งค่าไม่ครบ หรือเซิร์ฟเวอร์ e-GP
-              ไม่ตอบ ลองดูรายละเอียดตามหน่วยงานด้านล่าง
-            </p>
-          )}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span
-              className={
-                summaryStats.isEmptyRound
-                  ? "rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
-                  : "rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
-              }
-            >
-              เพิ่ม {summaryStats.created} รายการ
-            </span>
-            <span
-              className={
-                summaryStats.isEmptyRound
-                  ? "rounded-full border border-amber-300 bg-amber-100/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
-                  : "rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
-              }
-            >
-              แก้ไข {summaryStats.updated} รายการ
-            </span>
-            <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-              รวมจาก RSS {summaryStats.totalFromRss} รายการ
-            </span>
           </div>
         </div>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
-      {agencySlices.length > 0 &&
-        isResultVisible &&
-        (agencySlices.length > 1 || summaryStats?.isEmptyRound) && (
-        <div className="rounded-lg border border-slate-200 bg-white p-3">
-          <p className="mb-2 text-xs font-semibold text-slate-700">
-            สรุปตามหน่วยงาน
-          </p>
-          <ul className="space-y-2">
-            {agencySlices.map((d) => (
-              <li
-                key={d.agencyId}
-                className="rounded border border-slate-200 bg-slate-50 px-2 py-2 text-xs"
+      {summaryStats && isResultVisible && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="ผลลัพธ์การดึงข้อมูลจาก e-GP"
+        >
+          <div className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-xl">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-800">
+                ผลลัพธ์การดึงข้อมูลจาก e-GP
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsResultVisible(false)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                aria-label="ปิดผลลัพธ์การดึงข้อมูล"
               >
-                <div className="font-medium text-slate-800">{d.name}</div>
-                <div className="text-[11px] text-slate-600">{rssLabel(d)}</div>
-                {d.error ? (
-                  <p className="mt-1 text-[11px] text-red-600">{d.error}</p>
-                ) : (
-                  <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-                    <span className="text-slate-600">RSS {d.totalFromRss} รายการ</span>
-                    <span className="text-emerald-700">+{d.created}</span>
-                    <span className="text-sky-700">~{d.updated}</span>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {agencySlices.length === 1 &&
-        agencySlices[0]?.error &&
-        !summaryStats?.isEmptyRound &&
-        isResultVisible && (
-        <p className="text-xs text-amber-700">
-          {agencySlices[0].name}: {agencySlices[0].error}
-        </p>
-      )}
-      {typeStats.length > 0 && isResultVisible && (
-        <div className="rounded-lg border border-emerald-200 bg-white p-3">
-          <p className="mb-2 text-xs font-semibold text-slate-700">
-            สรุปตามประเภทประกาศ
-          </p>
-          <ul className="space-y-1">
-            {typeStats.map((item) => (
-              <li
-                key={item.type}
-                className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
-              >
-                <span className="font-medium text-slate-700">{item.type}</span>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
-                    รวม {item.total}
-                  </span>
-                  <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
-                    เพิ่ม {item.created}
-                  </span>
-                  <span className="rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">
-                    แก้ไข {item.updated}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
+                ×
+              </button>
+            </div>
+
+            <div
+              className={
+                summaryStats.isEmptyRound
+                  ? "rounded-lg border border-amber-200 bg-amber-50 p-2.5"
+                  : "rounded-lg border border-emerald-200 bg-emerald-50 p-2.5"
+              }
+            >
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p
+                  className={
+                    summaryStats.isEmptyRound
+                      ? "text-xs font-semibold text-amber-900"
+                      : "text-xs font-semibold text-emerald-700"
+                  }
+                >
+                  {summaryStats.isEmptyRound
+                    ? "รอบนี้ไม่มีข้อมูลจาก RSS"
+                    : "ดึงข้อมูลสำเร็จ"}
+                </p>
+              </div>
+              {summaryStats.isEmptyRound && (
+                <p className="mb-2 text-[11px] leading-snug text-amber-950/80">
+                  งาน ingest จบปกติแต่ไม่มีรายการจาก RSS และไม่มีแถวใหม่/แก้ไขใน DB
+                  — มักเกิดเมื่อ RSS ว่าง หน่วยงานตั้งค่าไม่ครบ หรือเซิร์ฟเวอร์ e-GP
+                  ไม่ตอบ ลองดูรายละเอียดตามหน่วยงานด้านล่าง
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={
+                    summaryStats.isEmptyRound
+                      ? "rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
+                      : "rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+                  }
+                >
+                  เพิ่ม {summaryStats.created} รายการ
+                </span>
+                <span
+                  className={
+                    summaryStats.isEmptyRound
+                      ? "rounded-full border border-amber-300 bg-amber-100/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
+                      : "rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
+                  }
+                >
+                  แก้ไข {summaryStats.updated} รายการ
+                </span>
+                <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                  รวมจาก RSS {summaryStats.totalFromRss} รายการ
+                </span>
+              </div>
+            </div>
+
+            {agencySlices.length > 0 &&
+              (agencySlices.length > 1 || summaryStats.isEmptyRound) && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                <p className="mb-2 text-xs font-semibold text-slate-700">
+                  สรุปตามหน่วยงาน
+                </p>
+                <ul className="space-y-2">
+                  {agencySlices.map((d) => (
+                    <li
+                      key={d.agencyId}
+                      className="rounded border border-slate-200 bg-slate-50 px-2 py-2 text-xs"
+                    >
+                      <div className="font-medium text-slate-800">{d.name}</div>
+                      <div className="text-[11px] text-slate-600">{rssLabel(d)}</div>
+                      {d.error ? (
+                        <p className="mt-1 text-[11px] text-red-600">{d.error}</p>
+                      ) : (
+                        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                          <span className="text-slate-600">RSS {d.totalFromRss} รายการ</span>
+                          <span className="text-emerald-700">+{d.created}</span>
+                          <span className="text-sky-700">~{d.updated}</span>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {agencySlices.length === 1 &&
+              agencySlices[0]?.error &&
+              !summaryStats.isEmptyRound && (
+              <p className="mt-3 text-xs text-amber-700">
+                {agencySlices[0].name}: {agencySlices[0].error}
+              </p>
+            )}
+
+            {typeStats.length > 0 && (
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
+                <p className="mb-2 text-xs font-semibold text-slate-700">
+                  สรุปตามประเภทประกาศ
+                </p>
+                <ul className="space-y-1">
+                  {typeStats.map((item) => (
+                    <li
+                      key={item.type}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
+                    >
+                      <span className="font-medium text-slate-700">{item.type}</span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                          รวม {item.total}
+                        </span>
+                        <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                          เพิ่ม {item.created}
+                        </span>
+                        <span className="rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">
+                          แก้ไข {item.updated}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
