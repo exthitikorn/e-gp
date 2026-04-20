@@ -39,9 +39,22 @@ interface IngestJobStatus {
   finishedAt?: string;
 }
 
+/** ความคืบหน้าเมื่อรัน async — ประมวลผลทีละหน่วยงาน */
+interface IngestJobProgress {
+  totalAgencies: number;
+  /** ลำดับหน่วยงานที่กำลังทำ (1-based) เทียบกับรายการที่ status = 1 */
+  currentAgencyIndex: number;
+  agencyId: string | null;
+  agencyName: string | null;
+  phase: "prepare" | "fetch" | "save" | "skip_invalid";
+  /** ISO — ตั้งครั้งแรกเมื่อเริ่มดึง RSS หน่วยงานแรกที่ใช้งานได้ (ใช้นับเวลาใน UI) */
+  fetchStartedAt?: string;
+}
+
 interface IngestJobResponse {
   job: IngestJobStatus;
   result?: IngestResult;
+  progress?: IngestJobProgress;
 }
 
 interface AgencyIngestSlice {
@@ -59,6 +72,75 @@ interface AgencyIngestSlice {
 
 const EGP_INGEST_SECRET = process.env.EGP_INGEST_SECRET;
 const INGEST_JOB_TTL_MS = 30 * 60 * 1000;
+
+/** ดึง RSS หลาย URL พร้อมกันต่อหน่วยงาน — 30 วินาทีมักไม่พอ */
+const DEFAULT_AGENCY_TIMEOUT_MS = 30_000;
+const INGEST_AGENCY_TIMEOUT_MS = (() => {
+  const raw = process.env.EGP_INGEST_AGENCY_TIMEOUT_MS?.trim();
+  if (!raw) {
+    return DEFAULT_AGENCY_TIMEOUT_MS;
+  }
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_AGENCY_TIMEOUT_MS;
+})();
+
+function createIngestAgencyTimeoutError(ms: number): Error {
+  const err = new Error(
+    `หมดเวลารายหน่วยงาน (${Math.round(ms / 1000)} วินาที)`,
+  );
+  err.name = "IngestAgencyTimeoutError";
+  if (typeof Error.captureStackTrace === "function") {
+    Error.captureStackTrace(err, withTimeout);
+  }
+  return err;
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  onTimeout: () => void,
+): Promise<T> {
+  const timeoutErr = createIngestAgencyTimeoutError(ms);
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (fn: () => void) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      fn();
+    };
+
+    const t = setTimeout(() => {
+      onTimeout();
+      finish(() => reject(timeoutErr));
+    }, ms);
+
+    promise.then(
+      (v) => {
+        clearTimeout(t);
+        finish(() => resolve(v));
+      },
+      (e) => {
+        clearTimeout(t);
+        finish(() => reject(e));
+      },
+    );
+  });
+}
+
+function formatAgencyIngestError(err: unknown): string {
+  if (err instanceof Error && err.name === "IngestAgencyTimeoutError") {
+    return err.message;
+  }
+  if (err instanceof Error && err.name === "AbortError") {
+    return `หมดเวลารายหน่วยงาน (${Math.round(INGEST_AGENCY_TIMEOUT_MS / 1000)} วินาที)`;
+  }
+  if (err instanceof Error) {
+    return err.message;
+  }
+  return "Unknown error";
+}
 const ingestJobs = new Map<
   string,
   {
@@ -66,8 +148,23 @@ const ingestJobs = new Map<
     startedAt: string;
     finishedAt?: string;
     result?: IngestResult;
+    progress?: IngestJobProgress;
   }
 >();
+
+function updateJobProgress(
+  jobId: string | undefined,
+  progress: IngestJobProgress,
+): void {
+  if (!jobId) {
+    return;
+  }
+  const job = ingestJobs.get(jobId);
+  if (!job || job.status !== "running") {
+    return;
+  }
+  ingestJobs.set(jobId, { ...job, progress });
+}
 
 function ndjsonResponse(payload: IngestResult, status: number) {
   // NDJSON: 1 JSON object ต่อ 1 บรรทัด
@@ -139,12 +236,16 @@ function buildNoActiveAgencyResult(): IngestResult {
   };
 }
 
-async function fetchXmlFromUrl(url: string): Promise<string> {
+async function fetchXmlFromUrl(
+  url: string,
+  options?: { signal?: AbortSignal },
+): Promise<string> {
   const response = await fetch(url, {
     headers: {
       Accept: "application/xml,text/xml;q=0.9,*/*;q=0.8",
     },
     cache: "no-store",
+    signal: options?.signal,
   });
 
   if (!response.ok) {
@@ -158,10 +259,14 @@ async function fetchXmlFromUrl(url: string): Promise<string> {
   return iconv.decode(Buffer.from(buffer), "win874");
 }
 
-async function fetchAllAnnouncementsFromEgpForAgency(params: {
-  deptId: string | null;
-  deptsubId: string | null;
-}): Promise<EgpAnnouncement[]> {
+async function fetchAllAnnouncementsFromEgpForAgency(
+  params: {
+    deptId: string | null;
+    deptsubId: string | null;
+  },
+  options?: { signal?: AbortSignal },
+): Promise<EgpAnnouncement[]> {
+  const signal = options?.signal;
   const scopes = buildRssDeptScopes({
     deptId: params.deptId,
     deptsubId: params.deptsubId,
@@ -180,7 +285,7 @@ async function fetchAllAnnouncementsFromEgpForAgency(params: {
   const xmlTexts = await Promise.all(
     urls.map(async (item) => ({
       scopeKey: item.scopeKey,
-      xmlText: await fetchXmlFromUrl(item.url),
+      xmlText: await fetchXmlFromUrl(item.url, { signal }),
     })),
   );
 
@@ -201,7 +306,7 @@ async function fetchAllAnnouncementsFromEgpForAgency(params: {
   return allAnnouncementsArrays.flat();
 }
 
-async function runIngest(): Promise<IngestResult> {
+async function runIngest(jobId?: string): Promise<IngestResult> {
   const activeAgencies = await prisma.egpAgency.findMany({
     where: { status: 1 },
     orderBy: { name: "asc" },
@@ -211,13 +316,26 @@ async function runIngest(): Promise<IngestResult> {
     return buildNoActiveAgencyResult();
   }
 
+  const totalAgencies = activeAgencies.length;
+  /** จุดเริ่มจับเวลา “เริ่มดึงข้อมูล” (หลังเตรียมรายการแล้ว เริ่มจาก RSS หน่วยแรก) */
+  let ingestFetchStartedAtIso: string | undefined;
+
+  updateJobProgress(jobId, {
+    totalAgencies,
+    currentAgencyIndex: 0,
+    agencyId: null,
+    agencyName: null,
+    phase: "prepare",
+  });
+
   const byAgencies: AgencyIngestSlice[] = [];
   const mergedByType: Record<string, IngestTypeStats> = {};
   let totalCreated = 0;
   let totalUpdated = 0;
   let totalFromRss = 0;
 
-  for (const agency of activeAgencies) {
+  for (let i = 0; i < activeAgencies.length; i += 1) {
+    const agency = activeAgencies[i]!;
     const scopes = buildRssDeptScopes({
       deptId: agency.deptId,
       deptsubId: agency.deptsubId,
@@ -243,38 +361,121 @@ async function runIngest(): Promise<IngestResult> {
     if (!scopeKey || scopes.length === 0) {
       slice.error =
         "ต้องระบุ deptId (หน่วยงานภาครัฐ) หรือ deptsubId (หน่วยจัดซื้อย่อย) อย่างน้อยหนึ่งค่า";
+      updateJobProgress(jobId, {
+        totalAgencies,
+        currentAgencyIndex: i + 1,
+        agencyId: agency.id,
+        agencyName: agency.name,
+        phase: "skip_invalid",
+        ...(ingestFetchStartedAtIso
+          ? { fetchStartedAt: ingestFetchStartedAtIso }
+          : {}),
+      });
       byAgencies.push(slice);
       continue;
     }
 
-    try {
-      const announcements = await fetchAllAnnouncementsFromEgpForAgency({
-        deptId: agency.deptId,
-        deptsubId: agency.deptsubId,
-      });
+    if (!ingestFetchStartedAtIso) {
+      ingestFetchStartedAtIso = new Date().toISOString();
+    }
+    updateJobProgress(jobId, {
+      totalAgencies,
+      currentAgencyIndex: i + 1,
+      agencyId: agency.id,
+      agencyName: agency.name,
+      phase: "fetch",
+      fetchStartedAt: ingestFetchStartedAtIso,
+    });
 
-      slice.totalFromRss = announcements.length;
-      totalFromRss += announcements.length;
+    type AgencyIngestOutcome =
+      | { kind: "empty" }
+      | {
+          kind: "ok";
+          announcements: EgpAnnouncement[];
+          created: number;
+          updated: number;
+          byAnnounceType: Record<string, IngestTypeStats>;
+        };
 
-      if (announcements.length === 0) {
-        slice.error = "No announcements in RSS response";
-        byAgencies.push(slice);
-        continue;
+    let outcome: AgencyIngestOutcome | null = null;
+    let lastAgencyError: unknown;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (attempt === 1) {
+        console.warn(
+          `[egp/ingest] รีทรีหน่วยงาน "${agency.name}" (ครั้งที่ 2) หลังจากล้มเหลวครั้งแรก`,
+        );
       }
 
-      const { created, updated, byAnnounceType } =
-        await upsertAnnouncements(announcements, agency.id);
+      const abortController = new AbortController();
+      try {
+        const inner = await withTimeout(
+          (async (): Promise<AgencyIngestOutcome> => {
+            const announcements = await fetchAllAnnouncementsFromEgpForAgency(
+              {
+                deptId: agency.deptId,
+                deptsubId: agency.deptsubId,
+              },
+              { signal: abortController.signal },
+            );
+            if (announcements.length === 0) {
+              return { kind: "empty" };
+            }
+            updateJobProgress(jobId, {
+              totalAgencies,
+              currentAgencyIndex: i + 1,
+              agencyId: agency.id,
+              agencyName: agency.name,
+              phase: "save",
+              ...(ingestFetchStartedAtIso
+                ? { fetchStartedAt: ingestFetchStartedAtIso }
+                : {}),
+            });
+            const { created, updated, byAnnounceType } =
+              await upsertAnnouncements(announcements, agency.id);
+            return {
+              kind: "ok",
+              announcements,
+              created,
+              updated,
+              byAnnounceType,
+            };
+          })(),
+          INGEST_AGENCY_TIMEOUT_MS,
+          () => abortController.abort(),
+        );
 
-      slice.created = created;
-      slice.updated = updated;
-      slice.byAnnounceType = byAnnounceType;
-      totalCreated += created;
-      totalUpdated += updated;
-      mergeByAnnounceType(mergedByType, byAnnounceType);
-    } catch (err) {
-      console.error(err);
-      slice.error =
-        err instanceof Error ? err.message : "Unknown error";
+        outcome = inner;
+        lastAgencyError = undefined;
+        break;
+      } catch (err) {
+        lastAgencyError = err;
+        const msg = formatAgencyIngestError(err);
+        if (attempt === 0) {
+          console.warn(
+            `[egp/ingest] หน่วยงาน "${agency.name}" ล้มเหลว จะ retry อีก 1 ครั้ง: ${msg}`,
+          );
+          continue;
+        }
+        console.warn(
+          `[egp/ingest] หน่วยงาน "${agency.name}" ล้มเหลวหลัง retry: ${msg}`,
+        );
+      }
+    }
+
+    if (outcome?.kind === "empty") {
+      slice.error = "No announcements in RSS response";
+    } else if (outcome?.kind === "ok") {
+      slice.totalFromRss = outcome.announcements.length;
+      totalFromRss += outcome.announcements.length;
+      slice.created = outcome.created;
+      slice.updated = outcome.updated;
+      slice.byAnnounceType = outcome.byAnnounceType;
+      totalCreated += outcome.created;
+      totalUpdated += outcome.updated;
+      mergeByAnnounceType(mergedByType, outcome.byAnnounceType);
+    } else if (lastAgencyError !== undefined) {
+      slice.error = `${formatAgencyIngestError(lastAgencyError)} (ลองซ้ำ 1 ครั้งแล้ว)`;
     }
 
     byAgencies.push(slice);
@@ -330,13 +531,14 @@ function startIngestJob(): string {
     startedAt,
   });
 
-  void runIngest()
+  void runIngest(jobId)
     .then((result) => {
       ingestJobs.set(jobId, {
         status: "completed",
         startedAt,
         finishedAt: new Date().toISOString(),
         result,
+        progress: undefined,
       });
       scheduleJobCleanup(jobId);
     })
@@ -345,6 +547,7 @@ function startIngestJob(): string {
         status: "failed",
         startedAt,
         finishedAt: new Date().toISOString(),
+        progress: undefined,
         result: {
           created: 0,
           updated: 0,
@@ -401,6 +604,7 @@ export async function GET(request: Request) {
       {
         job: status,
         result: job?.result,
+        progress: job?.status === "running" ? job.progress : undefined,
       },
       200,
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface AgencyIngestSlice {
   agencyId: string;
@@ -47,14 +47,77 @@ interface IngestJobStatus {
   finishedAt?: string;
 }
 
+interface IngestJobProgress {
+  totalAgencies: number;
+  currentAgencyIndex: number;
+  agencyId: string | null;
+  agencyName: string | null;
+  phase: "prepare" | "fetch" | "save" | "skip_invalid";
+  /** ISO — จากเซิร์ฟเวอร์ เริ่มนับเมื่อเริ่มดึง RSS ครั้งแรก */
+  fetchStartedAt?: string;
+}
+
 interface IngestJobResponse {
   job: IngestJobStatus;
   result?: IngestResult;
+  progress?: IngestJobProgress;
 }
 
 const ingestToken = process.env.NEXT_PUBLIC_EGP_INGEST_SECRET;
-const POLL_INTERVAL_MS = 2500;
-const MAX_POLL_ATTEMPTS = 180;
+const POLL_INTERVAL_MS = 1200;
+/** งาน ingest หลายหน่วยงานอาจใช้เวลานาน — โพลจนกว่าจะเสร็จหรือเกินเวลานี้ */
+const MAX_POLL_DURATION_MS = 25 * 60 * 1000;
+
+function progressPercent(p: IngestJobProgress): number {
+  const n = p.totalAgencies;
+  if (n <= 0) {
+    return 0;
+  }
+  if (p.phase === "prepare" || p.currentAgencyIndex <= 0) {
+    return 3;
+  }
+  const i = p.currentAgencyIndex;
+  const slot =
+    p.phase === "fetch"
+      ? i - 1 + 0.25
+      : p.phase === "save"
+        ? i - 1 + 0.72
+        : p.phase === "skip_invalid"
+          ? i
+          : i - 1;
+  return Math.min(100, Math.round((slot / n) * 100));
+}
+
+function formatElapsedSince(isoStart: string, nowMs: number): string {
+  const start = Date.parse(isoStart);
+  if (Number.isNaN(start)) {
+    return "—";
+  }
+  const totalSec = Math.max(0, Math.floor((nowMs - start) / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) {
+    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function progressDescription(p: IngestJobProgress): string {
+  const n = p.totalAgencies;
+  if (p.phase === "prepare") {
+    return `เตรียมดึงข้อมูล ${n} หน่วยงาน`;
+  }
+  const idx = p.currentAgencyIndex;
+  const name = p.agencyName?.trim() || "หน่วยงาน";
+  if (p.phase === "skip_invalid") {
+    return `ข้ามการตั้งค่า RSS (${idx}/${n}): ${name}`;
+  }
+  if (p.phase === "fetch") {
+    return `กำลังดึง RSS จาก e-GP (${idx}/${n}): ${name}`;
+  }
+  return `กำลังบันทึกลงฐานข้อมูล (${idx}/${n}): ${name}`;
+}
 
 export function IngestButton() {
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +126,8 @@ export function IngestButton() {
     created: number;
     updated: number;
     totalFromRss: number;
+    /** รอบนี้ไม่มีรายการจาก RSS และไม่มีการบันทึก — ไม่ใช่ “สำเร็จแบบมีข้อมูลใหม่” */
+    isEmptyRound: boolean;
   } | null>(null);
   const [typeStats, setTypeStats] = useState<
     Array<{
@@ -74,6 +139,20 @@ export function IngestButton() {
   >([]);
   const [agencySlices, setAgencySlices] = useState<AgencyIngestSlice[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [ingestProgress, setIngestProgress] = useState<IngestJobProgress | null>(
+    null,
+  );
+  const [ingestElapsedNow, setIngestElapsedNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!isLoading || !ingestProgress?.fetchStartedAt) {
+      return;
+    }
+    const tick = () => setIngestElapsedNow(Date.now());
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [isLoading, ingestProgress?.fetchStartedAt]);
 
   const handleClick = async () => {
     if (isLoading) {
@@ -86,6 +165,7 @@ export function IngestButton() {
     setAgencySlices([]);
     setError(null);
     setIsResultVisible(false);
+    setIngestProgress(null);
 
     try {
       const baseIngestUrl = new URL(
@@ -98,19 +178,12 @@ export function IngestButton() {
 
       const startUrl = new URL(baseIngestUrl.toString());
       startUrl.searchParams.set("async", "1");
-      console.log("[EGP Ingest] start request", {
-        url: startUrl.toString(),
-      });
 
       const startResponse = await fetch(startUrl.toString(), {
         method: "GET",
         cache: "no-store",
       });
       const startData: IngestJobResponse = await startResponse.json();
-      console.log("[EGP Ingest] start response", {
-        status: startResponse.status,
-        jobId: startData.job?.jobId,
-      });
 
       if (startResponse.status === 401) {
         if (!ingestToken) {
@@ -130,29 +203,27 @@ export function IngestButton() {
 
       let ingestResult: IngestResult | undefined;
       let ingestStatus: IngestJobStatus["status"] = startData.job.status;
+      const pollStartedAt = Date.now();
 
-      for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt += 1) {
+      while (ingestStatus === "running") {
+        if (Date.now() - pollStartedAt > MAX_POLL_DURATION_MS) {
+          break;
+        }
+
         const statusUrl = new URL(baseIngestUrl.toString());
         statusUrl.searchParams.set("jobId", startData.job.jobId);
-        console.log("[EGP Ingest] poll request", {
-          attempt: attempt + 1,
-          maxAttempts: MAX_POLL_ATTEMPTS,
-          url: statusUrl.toString(),
-        });
 
         const statusResponse = await fetch(statusUrl.toString(), {
           method: "GET",
           cache: "no-store",
         });
         const statusData: IngestJobResponse = await statusResponse.json();
-        console.log("[EGP Ingest] poll response", {
-          attempt: attempt + 1,
-          statusCode: statusResponse.status,
-          jobStatus: statusData.job?.status,
-        });
 
         ingestStatus = statusData.job?.status ?? "failed";
         ingestResult = statusData.result;
+        if (statusData.progress) {
+          setIngestProgress(statusData.progress);
+        }
 
         if (ingestStatus !== "running") {
           break;
@@ -167,11 +238,13 @@ export function IngestButton() {
         setError(
           "งาน ingest ยังไม่เสร็จภายในเวลาที่กำหนด กรุณาลองใหม่อีกครั้งเพื่อตรวจสถานะ",
         );
+        setIngestProgress(null);
         return;
       }
 
       if (!ingestResult) {
         setError("ไม่ได้รับผลลัพธ์จากงาน ingest");
+        setIngestProgress(null);
         return;
       }
 
@@ -180,16 +253,24 @@ export function IngestButton() {
           setError(
             "ยังไม่มีหน่วยงานที่ status = 1 ในฐานข้อมูล — ให้เพิ่ม EgpAgency ก่อน",
           );
+          setIngestProgress(null);
           return;
         }
         setError(ingestResult.error || "ดึงข้อมูลไม่สำเร็จ");
+        setIngestProgress(null);
         return;
       }
 
+      setIngestProgress(null);
+      const isEmptyRound =
+        ingestResult.created === 0 &&
+        ingestResult.updated === 0 &&
+        ingestResult.totalFromRss === 0;
       setSummaryStats({
         created: ingestResult.created,
         updated: ingestResult.updated,
         totalFromRss: ingestResult.totalFromRss,
+        isEmptyRound,
       });
       const sortedTypeStats = Object.entries(ingestResult.byAnnounceType ?? {})
         .map(([type, stats]) => ({
@@ -204,14 +285,9 @@ export function IngestButton() {
         ingestResult.byAgencies ?? ingestResult.byDepartment ?? [],
       );
       setIsResultVisible(true);
-      console.log("[EGP Ingest] completed", {
-        created: ingestResult.created,
-        updated: ingestResult.updated,
-        totalFromRss: ingestResult.totalFromRss,
-      });
     } catch {
-      console.log("[EGP Ingest] failed with unexpected error");
       setError("เกิดข้อผิดพลาดระหว่างดึงข้อมูลจาก e-GP");
+      setIngestProgress(null);
     } finally {
       setIsLoading(false);
     }
@@ -237,24 +313,94 @@ export function IngestButton() {
       >
         {isLoading ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
       </button>
+      {isLoading && ingestProgress && (
+        <div className="max-w-md space-y-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-medium text-slate-500">
+              ความคืบหน้า
+            </span>
+            {ingestProgress.fetchStartedAt ? (
+              <span
+                className="font-mono text-[11px] tabular-nums text-slate-600"
+                title="นับจากเริ่มดึงข้อมูลจาก e-GP"
+              >
+                {formatElapsedSince(
+                  ingestProgress.fetchStartedAt,
+                  ingestElapsedNow,
+                )}
+              </span>
+            ) : (
+              <span className="text-[10px] text-slate-400">รอเริ่มดึง…</span>
+            )}
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
+              style={{ width: `${progressPercent(ingestProgress)}%` }}
+            />
+          </div>
+          <p className="text-[11px] leading-snug text-slate-700">
+            {progressDescription(ingestProgress)}
+          </p>
+        </div>
+      )}
       {summaryStats && isResultVisible && (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2.5">
+        <div
+          className={
+            summaryStats.isEmptyRound
+              ? "rounded-lg border border-amber-200 bg-amber-50 p-2.5"
+              : "rounded-lg border border-emerald-200 bg-emerald-50 p-2.5"
+          }
+        >
           <div className="mb-1 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-emerald-700">ดึงข้อมูลสำเร็จ</p>
+            <p
+              className={
+                summaryStats.isEmptyRound
+                  ? "text-xs font-semibold text-amber-900"
+                  : "text-xs font-semibold text-emerald-700"
+              }
+            >
+              {summaryStats.isEmptyRound
+                ? "รอบนี้ไม่มีข้อมูลจาก RSS"
+                : "ดึงข้อมูลสำเร็จ"}
+            </p>
             <button
               type="button"
               onClick={() => setIsResultVisible(false)}
-              className="inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-300 bg-white text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+              className={
+                summaryStats.isEmptyRound
+                  ? "inline-flex h-5 w-5 items-center justify-center rounded border border-amber-300 bg-white text-[11px] font-semibold text-amber-900 hover:bg-amber-100"
+                  : "inline-flex h-5 w-5 items-center justify-center rounded border border-emerald-300 bg-white text-[11px] font-semibold text-emerald-700 hover:bg-emerald-100"
+              }
               aria-label="ปิดสรุปผล"
             >
               ×
             </button>
           </div>
+          {summaryStats.isEmptyRound && (
+            <p className="mb-2 text-[11px] leading-snug text-amber-950/80">
+              งาน ingest จบปกติแต่ไม่มีรายการจาก RSS และไม่มีแถวใหม่/แก้ไขใน DB
+              — มักเกิดเมื่อ RSS ว่าง หน่วยงานตั้งค่าไม่ครบ หรือเซิร์ฟเวอร์ e-GP
+              ไม่ตอบ ลองดูรายละเอียดตามหน่วยงานด้านล่าง
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+            <span
+              className={
+                summaryStats.isEmptyRound
+                  ? "rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
+                  : "rounded-full border border-emerald-300 bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800"
+              }
+            >
               เพิ่ม {summaryStats.created} รายการ
             </span>
-            <span className="rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800">
+            <span
+              className={
+                summaryStats.isEmptyRound
+                  ? "rounded-full border border-amber-300 bg-amber-100/80 px-2 py-0.5 text-[11px] font-semibold text-amber-900"
+                  : "rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 text-[11px] font-semibold text-sky-800"
+              }
+            >
               แก้ไข {summaryStats.updated} รายการ
             </span>
             <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
@@ -264,7 +410,9 @@ export function IngestButton() {
         </div>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
-      {agencySlices.length > 1 && isResultVisible && (
+      {agencySlices.length > 0 &&
+        isResultVisible &&
+        (agencySlices.length > 1 || summaryStats?.isEmptyRound) && (
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <p className="mb-2 text-xs font-semibold text-slate-700">
             สรุปตามหน่วยงาน
@@ -291,7 +439,10 @@ export function IngestButton() {
           </ul>
         </div>
       )}
-      {agencySlices.length === 1 && agencySlices[0]?.error && (
+      {agencySlices.length === 1 &&
+        agencySlices[0]?.error &&
+        !summaryStats?.isEmptyRound &&
+        isResultVisible && (
         <p className="text-xs text-amber-700">
           {agencySlices[0].name}: {agencySlices[0].error}
         </p>
