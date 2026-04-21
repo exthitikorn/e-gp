@@ -49,6 +49,13 @@ interface IngestJobProgress {
   phase: "prepare" | "fetch" | "save" | "skip_invalid";
   /** ISO — ตั้งครั้งแรกเมื่อเริ่มดึง RSS หน่วยงานแรกที่ใช้งานได้ (ใช้นับเวลาใน UI) */
   fetchStartedAt?: string;
+  /** ระหว่าง phase "fetch" — กำลังดึงฟีดลำดับที่เท่าไหร่จากทั้งหมดของหน่วยงานนี้ */
+  currentFeedIndex?: number;
+  totalFeeds?: number;
+  /** รหัสประเภทประกาศใน query RSS (เช่น P0, D0) */
+  currentAnnounceType?: string;
+  /** คีย์ scope จาก buildRssDeptScopes (เช่น d:… / s:…) */
+  currentRssScopeKey?: string | null;
 }
 
 interface IngestJobResponse {
@@ -68,6 +75,7 @@ interface AgencyIngestSlice {
   totalFromRss: number;
   byAnnounceType: Record<string, IngestTypeStats>;
   error?: string;
+  warning?: string;
 }
 
 const EGP_INGEST_SECRET = process.env.EGP_INGEST_SECRET;
@@ -91,8 +99,8 @@ const RSS_FETCH_RETRIES = (() => {
   return Number.isFinite(n) && n >= 0 ? n : DEFAULT_RSS_FETCH_RETRIES;
 })();
 
-/** ดึง RSS หลาย URL พร้อมกันต่อหน่วยงาน — 30 วินาทีมักไม่พอ */
-const DEFAULT_AGENCY_TIMEOUT_MS = 30_000;
+/** ดึง RSS หลาย URL พร้อมกันต่อหน่วยงาน */
+const DEFAULT_AGENCY_TIMEOUT_MS = 60_000;
 const INGEST_AGENCY_TIMEOUT_MS = (() => {
   const raw = process.env.EGP_INGEST_AGENCY_TIMEOUT_MS?.trim();
   if (!raw) {
@@ -364,8 +372,21 @@ async function fetchAllAnnouncementsFromEgpForAgency(
     deptId: string | null;
     deptsubId: string | null;
   },
-  options?: { signal?: AbortSignal },
-): Promise<EgpAnnouncement[]> {
+  options?: {
+    signal?: AbortSignal;
+    onFeedProgress?: (info: {
+      feedIndex: number;
+      totalFeeds: number;
+      announceType: EgpAnnounceType;
+      scopeKey: string | null;
+    }) => void | Promise<void>;
+  },
+): Promise<{
+  announcements: EgpAnnouncement[];
+  failedFeedCount: number;
+  totalFeedCount: number;
+  failedFeedSamples: string[];
+}> {
   const signal = options?.signal;
   const scopes = buildRssDeptScopes({
     deptId: params.deptId,
@@ -374,6 +395,7 @@ async function fetchAllAnnouncementsFromEgpForAgency(
   const urls = scopes.flatMap((scope) =>
     ALL_EGP_ANNOUNCE_TYPES.map((anounceType) => ({
       scopeKey: scope.scopeKey,
+      announceType: anounceType,
       url: buildEgpRssUrl({
         deptId: scope.deptId,
         deptsubId: scope.deptsubId,
@@ -382,12 +404,43 @@ async function fetchAllAnnouncementsFromEgpForAgency(
     })),
   );
 
-  const xmlTexts = await Promise.all(
-    urls.map(async (item) => ({
+  /** ดึง RSS ทีละ URL ต่อหน่วยงาน (ลดโหลดปลายทาง / ลดการแย่งช่องทาง) */
+  type RssFeedSettled =
+    | { kind: "fulfilled"; scopeKey: string | null; xmlText: string }
+    | { kind: "rejected"; url: string; message: string };
+  const settled: RssFeedSettled[] = [];
+  const onFeedProgress = options?.onFeedProgress;
+  for (let fi = 0; fi < urls.length; fi += 1) {
+    const item = urls[fi]!;
+    await onFeedProgress?.({
+      feedIndex: fi + 1,
+      totalFeeds: urls.length,
+      announceType: item.announceType,
       scopeKey: item.scopeKey,
-      xmlText: await fetchXmlFromUrl(item.url, { signal }),
-    })),
-  );
+    });
+    try {
+      const xmlText = await fetchXmlFromUrl(item.url, { signal });
+      settled.push({ kind: "fulfilled", scopeKey: item.scopeKey, xmlText });
+    } catch (err) {
+      settled.push({
+        kind: "rejected",
+        url: item.url,
+        message: formatFetchRootCause(err),
+      });
+    }
+  }
+  const xmlTexts = settled.filter((item) => item.kind === "fulfilled");
+  const failedFeeds = settled.filter((item) => item.kind === "rejected");
+
+  if (xmlTexts.length === 0) {
+    const sample = failedFeeds
+      .slice(0, 3)
+      .map((item) => `${item.url} => ${item.message}`)
+      .join(" | ");
+    throw new Error(
+      `ไม่สามารถดึง RSS ได้ (${failedFeeds.length}/${urls.length} URL): ${sample || "unknown error"}`,
+    );
+  }
 
   const { XMLParser } = await import("fast-xml-parser");
   const parser = new XMLParser({
@@ -403,7 +456,14 @@ async function fetchAllAnnouncementsFromEgpForAgency(
     });
   });
 
-  return allAnnouncementsArrays.flat();
+  return {
+    announcements: allAnnouncementsArrays.flat(),
+    failedFeedCount: failedFeeds.length,
+    totalFeedCount: urls.length,
+    failedFeedSamples: failedFeeds
+      .slice(0, 3)
+      .map((item) => `${item.url} => ${item.message}`),
+  };
 }
 
 async function runIngest(jobId?: string): Promise<IngestResult> {
@@ -488,13 +548,21 @@ async function runIngest(jobId?: string): Promise<IngestResult> {
     });
 
     type AgencyIngestOutcome =
-      | { kind: "empty" }
+      | {
+          kind: "empty";
+          failedFeedCount: number;
+          totalFeedCount: number;
+          failedFeedSamples: string[];
+        }
       | {
           kind: "ok";
           announcements: EgpAnnouncement[];
           created: number;
           updated: number;
           byAnnounceType: Record<string, IngestTypeStats>;
+          failedFeedCount: number;
+          totalFeedCount: number;
+          failedFeedSamples: string[];
         };
 
     let outcome: AgencyIngestOutcome | null = null;
@@ -511,15 +579,36 @@ async function runIngest(jobId?: string): Promise<IngestResult> {
       try {
         const inner = await withTimeout(
           (async (): Promise<AgencyIngestOutcome> => {
-            const announcements = await fetchAllAnnouncementsFromEgpForAgency(
+            const fetched = await fetchAllAnnouncementsFromEgpForAgency(
               {
                 deptId: agency.deptId,
                 deptsubId: agency.deptsubId,
               },
-              { signal: abortController.signal },
+              {
+                signal: abortController.signal,
+                onFeedProgress: async (feed) => {
+                  updateJobProgress(jobId, {
+                    totalAgencies,
+                    currentAgencyIndex: i + 1,
+                    agencyId: agency.id,
+                    agencyName: agency.name,
+                    phase: "fetch",
+                    fetchStartedAt: ingestFetchStartedAtIso,
+                    currentFeedIndex: feed.feedIndex,
+                    totalFeeds: feed.totalFeeds,
+                    currentAnnounceType: feed.announceType,
+                    currentRssScopeKey: feed.scopeKey,
+                  });
+                },
+              },
             );
-            if (announcements.length === 0) {
-              return { kind: "empty" };
+            if (fetched.announcements.length === 0) {
+              return {
+                kind: "empty",
+                failedFeedCount: fetched.failedFeedCount,
+                totalFeedCount: fetched.totalFeedCount,
+                failedFeedSamples: fetched.failedFeedSamples,
+              };
             }
             updateJobProgress(jobId, {
               totalAgencies,
@@ -532,13 +621,16 @@ async function runIngest(jobId?: string): Promise<IngestResult> {
                 : {}),
             });
             const { created, updated, byAnnounceType } =
-              await upsertAnnouncements(announcements, agency.id);
+              await upsertAnnouncements(fetched.announcements, agency.id);
             return {
               kind: "ok",
-              announcements,
+              announcements: fetched.announcements,
               created,
               updated,
               byAnnounceType,
+              failedFeedCount: fetched.failedFeedCount,
+              totalFeedCount: fetched.totalFeedCount,
+              failedFeedSamples: fetched.failedFeedSamples,
             };
           })(),
           INGEST_AGENCY_TIMEOUT_MS,
@@ -565,12 +657,26 @@ async function runIngest(jobId?: string): Promise<IngestResult> {
 
     if (outcome?.kind === "empty") {
       slice.error = "No announcements in RSS response";
+      if (outcome.failedFeedCount > 0) {
+        slice.warning =
+          `ดึง RSS ได้บางส่วน (${outcome.totalFeedCount - outcome.failedFeedCount}/${outcome.totalFeedCount} URL)` +
+          (outcome.failedFeedSamples.length > 0
+            ? ` ตัวอย่างที่ล้มเหลว: ${outcome.failedFeedSamples.join(" | ")}`
+            : "");
+      }
     } else if (outcome?.kind === "ok") {
       slice.totalFromRss = outcome.announcements.length;
       totalFromRss += outcome.announcements.length;
       slice.created = outcome.created;
       slice.updated = outcome.updated;
       slice.byAnnounceType = outcome.byAnnounceType;
+      if (outcome.failedFeedCount > 0) {
+        slice.warning =
+          `ดึง RSS ได้บางส่วน (${outcome.totalFeedCount - outcome.failedFeedCount}/${outcome.totalFeedCount} URL)` +
+          (outcome.failedFeedSamples.length > 0
+            ? ` ตัวอย่างที่ล้มเหลว: ${outcome.failedFeedSamples.join(" | ")}`
+            : "");
+      }
       totalCreated += outcome.created;
       totalUpdated += outcome.updated;
       mergeByAnnounceType(mergedByType, outcome.byAnnounceType);

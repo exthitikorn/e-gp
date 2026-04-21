@@ -1,5 +1,6 @@
 "use client";
 
+import { Activity } from "lucide-react";
 import { useEffect, useState } from "react";
 
 interface AgencyIngestSlice {
@@ -55,6 +56,10 @@ interface IngestJobProgress {
   phase: "prepare" | "fetch" | "save" | "skip_invalid";
   /** ISO — จากเซิร์ฟเวอร์ เริ่มนับเมื่อเริ่มดึง RSS ครั้งแรก */
   fetchStartedAt?: string;
+  currentFeedIndex?: number;
+  totalFeeds?: number;
+  currentAnnounceType?: string;
+  currentRssScopeKey?: string | null;
 }
 
 interface IngestJobResponse {
@@ -77,9 +82,15 @@ function progressPercent(p: IngestJobProgress): number {
     return 3;
   }
   const i = p.currentAgencyIndex;
+  const totalFeeds = p.totalFeeds ?? 0;
+  const feedIdx = p.currentFeedIndex ?? 0;
+  const fetchSlotWithinAgency =
+    totalFeeds > 0 && feedIdx > 0
+      ? Math.min(0.58, (feedIdx / totalFeeds) * 0.58)
+      : 0.25;
   const slot =
     p.phase === "fetch"
-      ? i - 1 + 0.25
+      ? i - 1 + fetchSlotWithinAgency
       : p.phase === "save"
         ? i - 1 + 0.72
         : p.phase === "skip_invalid"
@@ -114,13 +125,24 @@ function progressDescription(p: IngestJobProgress): string {
     return `ข้ามการตั้งค่า RSS (${idx}/${n}): ${name}`;
   }
   if (p.phase === "fetch") {
-    return `กำลังดึง RSS จาก e-GP (${idx}/${n}): ${name}`;
+    const feedPart =
+      p.totalFeeds && p.currentFeedIndex && p.currentAnnounceType
+        ? ` — ประเภท ${p.currentAnnounceType} (${p.currentFeedIndex}/${p.totalFeeds})`
+        : "";
+    const scopePart =
+      p.currentRssScopeKey != null && String(p.currentRssScopeKey).trim() !== ""
+        ? ` · รหัสหน่วยงาน ${p.currentRssScopeKey}`
+        : "";
+    return `กำลังดึง RSS จาก e-GP (${idx}/${n}): ${name}${feedPart}${scopePart}`;
   }
   return `กำลังบันทึกลงฐานข้อมูล (${idx}/${n}): ${name}`;
 }
 
 export function IngestButton() {
   const [isLoading, setIsLoading] = useState(false);
+  /** แผงรายละเอียดความคืบหน้า — เริ่มย่อ; กดไอคอนมุมขวาล่างเพื่อเปิด */
+  const [isBackgroundProgressOpen, setIsBackgroundProgressOpen] =
+    useState(false);
   const [isResultVisible, setIsResultVisible] = useState(false);
   const [summaryStats, setSummaryStats] = useState<{
     created: number;
@@ -139,9 +161,8 @@ export function IngestButton() {
   >([]);
   const [agencySlices, setAgencySlices] = useState<AgencyIngestSlice[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [ingestProgress, setIngestProgress] = useState<IngestJobProgress | null>(
-    null,
-  );
+  const [ingestProgress, setIngestProgress] =
+    useState<IngestJobProgress | null>(null);
   const [ingestElapsedNow, setIngestElapsedNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -165,6 +186,7 @@ export function IngestButton() {
     setAgencySlices([]);
     setError(null);
     setIsResultVisible(false);
+    setIsBackgroundProgressOpen(false);
     setIngestProgress(null);
 
     try {
@@ -313,42 +335,101 @@ export function IngestButton() {
       >
         {isLoading ? "กำลังดึงข้อมูลจาก e-GP..." : "ดึงข้อมูลจาก e-GP"}
       </button>
-      {isLoading && ingestProgress && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="สถานะความคืบหน้าการดึงข้อมูลจาก e-GP"
-        >
-          <div className="w-full max-w-md space-y-2 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-xl">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-600">
-                ความคืบหน้า
-              </span>
-              {ingestProgress.fetchStartedAt ? (
-                <span
-                  className="font-mono text-[11px] tabular-nums text-slate-600"
-                  title="นับจากเริ่มดึงข้อมูลจาก e-GP"
-                >
-                  {formatElapsedSince(
-                    ingestProgress.fetchStartedAt,
-                    ingestElapsedNow,
-                  )}
+      {isLoading && (
+        <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-2 sm:bottom-6 sm:right-6">
+          {isBackgroundProgressOpen && (
+            <div
+              id="egp-ingest-progress-panel"
+              className="w-[min(100vw-2.5rem,22rem)] space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-xl"
+              role="region"
+              aria-label="สถานะความคืบหน้าการดึงข้อมูลจาก e-GP"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                <span className="text-[11px] font-semibold text-slate-600">
+                  กำลังดึงข้อมูล (พื้นหลัง)
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setIsBackgroundProgressOpen(false)}
+                  className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-slate-200 bg-white px-1.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                  aria-label="ย่อแผงความคืบหน้า"
+                >
+                  ย่อ
+                </button>
+              </div>
+              {ingestProgress ? (
+                <>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-medium text-slate-500">
+                      ความคืบหน้า
+                    </span>
+                    {ingestProgress.fetchStartedAt ? (
+                      <span
+                        className="font-mono text-[10px] tabular-nums text-slate-600"
+                        title="นับจากเริ่มดึงข้อมูลจาก e-GP"
+                      >
+                        {formatElapsedSince(
+                          ingestProgress.fetchStartedAt,
+                          ingestElapsedNow,
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-slate-400">
+                        รอเริ่มดึง…
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
+                      style={{
+                        width: `${progressPercent(ingestProgress)}%`,
+                      }}
+                    />
+                  </div>
+                  <p
+                    className="text-[11px] leading-snug text-slate-700 wrap-break-word"
+                    aria-live="polite"
+                  >
+                    {progressDescription(ingestProgress)}
+                  </p>
+                </>
               ) : (
-                <span className="text-[10px] text-slate-400">รอเริ่มดึง…</span>
+                <p className="text-[11px] leading-snug text-slate-600">
+                  กำลังเริ่มงานและเชื่อมต่อ e-GP…
+                </p>
               )}
             </div>
-            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full rounded-full bg-emerald-500 transition-[width] duration-300 ease-out"
-                style={{ width: `${progressPercent(ingestProgress)}%` }}
+          )}
+          <button
+            type="button"
+            onClick={() => setIsBackgroundProgressOpen((open) => !open)}
+            className="relative inline-flex h-12 w-12 items-center justify-center rounded-full border border-emerald-600 bg-emerald-500 text-white shadow-lg ring-2 ring-emerald-200/60 hover:bg-emerald-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+            aria-expanded={isBackgroundProgressOpen}
+            aria-controls={
+              isBackgroundProgressOpen ? "egp-ingest-progress-panel" : undefined
+            }
+            title={
+              isBackgroundProgressOpen
+                ? "ปิดแผงความคืบหน้า"
+                : "เปิดสถานะความคืบหน้าการดึงข้อมูลจาก e-GP"
+            }
+          >
+            <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping [animation-duration:2s]" />
+            <span className="relative">
+              <Activity
+                size={22}
+                strokeWidth={2}
+                className="shrink-0"
+                aria-hidden
               />
-            </div>
-            <p className="text-xs leading-snug text-slate-700">
-              {progressDescription(ingestProgress)}
-            </p>
-          </div>
+            </span>
+            {ingestProgress && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-900 px-1 text-[9px] font-bold tabular-nums text-white ring-2 ring-white">
+                {progressPercent(ingestProgress)}%
+              </span>
+            )}
+          </button>
         </div>
       )}
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -396,9 +477,9 @@ export function IngestButton() {
               </div>
               {summaryStats.isEmptyRound && (
                 <p className="mb-2 text-[11px] leading-snug text-amber-950/80">
-                  งาน ingest จบปกติแต่ไม่มีรายการจาก RSS และไม่มีแถวใหม่/แก้ไขใน DB
-                  — มักเกิดเมื่อ RSS ว่าง หน่วยงานตั้งค่าไม่ครบ หรือเซิร์ฟเวอร์ e-GP
-                  ไม่ตอบ ลองดูรายละเอียดตามหน่วยงานด้านล่าง
+                  งาน ingest จบปกติแต่ไม่มีรายการจาก RSS และไม่มีแถวใหม่/แก้ไขใน
+                  DB — มักเกิดเมื่อ RSS ว่าง หน่วยงานตั้งค่าไม่ครบ
+                  หรือเซิร์ฟเวอร์ e-GP ไม่ตอบ ลองดูรายละเอียดตามหน่วยงานด้านล่าง
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-1.5">
@@ -428,40 +509,50 @@ export function IngestButton() {
 
             {agencySlices.length > 0 &&
               (agencySlices.length > 1 || summaryStats.isEmptyRound) && (
-              <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
-                <p className="mb-2 text-xs font-semibold text-slate-700">
-                  สรุปตามหน่วยงาน
-                </p>
-                <ul className="space-y-2">
-                  {agencySlices.map((d) => (
-                    <li
-                      key={d.agencyId}
-                      className="rounded border border-slate-200 bg-slate-50 px-2 py-2 text-xs"
-                    >
-                      <div className="font-medium text-slate-800">{d.name}</div>
-                      <div className="text-[11px] text-slate-600">{rssLabel(d)}</div>
-                      {d.error ? (
-                        <p className="mt-1 text-[11px] text-red-600">{d.error}</p>
-                      ) : (
-                        <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
-                          <span className="text-slate-600">RSS {d.totalFromRss} รายการ</span>
-                          <span className="text-emerald-700">+{d.created}</span>
-                          <span className="text-sky-700">~{d.updated}</span>
+                <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+                  <p className="mb-2 text-xs font-semibold text-slate-700">
+                    สรุปตามหน่วยงาน
+                  </p>
+                  <ul className="space-y-2">
+                    {agencySlices.map((d) => (
+                      <li
+                        key={d.agencyId}
+                        className="rounded border border-slate-200 bg-slate-50 px-2 py-2 text-xs"
+                      >
+                        <div className="font-medium text-slate-800">
+                          {d.name}
                         </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                        <div className="text-[11px] text-slate-600">
+                          {rssLabel(d)}
+                        </div>
+                        {d.error ? (
+                          <p className="mt-1 text-[11px] text-red-600">
+                            {d.error}
+                          </p>
+                        ) : (
+                          <div className="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+                            <span className="text-slate-600">
+                              RSS {d.totalFromRss} รายการ
+                            </span>
+                            <span className="text-emerald-700">
+                              +{d.created}
+                            </span>
+                            <span className="text-sky-700">~{d.updated}</span>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
             {agencySlices.length === 1 &&
               agencySlices[0]?.error &&
               !summaryStats.isEmptyRound && (
-              <p className="mt-3 text-xs text-amber-700">
-                {agencySlices[0].name}: {agencySlices[0].error}
-              </p>
-            )}
+                <p className="mt-3 text-xs text-amber-700">
+                  {agencySlices[0].name}: {agencySlices[0].error}
+                </p>
+              )}
 
             {typeStats.length > 0 && (
               <div className="mt-3 rounded-lg border border-emerald-200 bg-white p-3">
@@ -474,7 +565,9 @@ export function IngestButton() {
                       key={item.type}
                       className="flex flex-wrap items-center justify-between gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs"
                     >
-                      <span className="font-medium text-slate-700">{item.type}</span>
+                      <span className="font-medium text-slate-700">
+                        {item.type}
+                      </span>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
                           รวม {item.total}
