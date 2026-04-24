@@ -14,6 +14,42 @@ export interface UpsertAnnouncementsResult {
   byAnnounceType: Record<string, IngestTypeStats>;
 }
 
+function normalizeAnnouncementKeyPart(value: string | null | undefined): string {
+  return (value ?? "").trim().replace(/\s+/gu, " ").toLowerCase();
+}
+
+function dedupeAnnouncementsByNaturalKey(
+  announcements: RssAnnouncement[],
+): RssAnnouncement[] {
+  const deduped = new Map<string, RssAnnouncement>();
+
+  for (const ann of announcements) {
+    const projectNumber = normalizeAnnouncementKeyPart(ann.projectNumber);
+    const announceType = normalizeAnnouncementKeyPart(
+      typeof ann.announceType === "string"
+        ? ann.announceType
+        : String(ann.announceType),
+    );
+    const link = normalizeAnnouncementKeyPart(ann.link);
+    const naturalKey = `${projectNumber}|${announceType}|${link}`;
+    const prev = deduped.get(naturalKey);
+
+    if (!prev) {
+      deduped.set(naturalKey, ann);
+      continue;
+    }
+
+    // เก็บ record ที่มีข้อมูลวันที่ประกาศใหม่กว่าไว้ (ถ้ามี)
+    const prevTime = prev.publishedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+    const currTime = ann.publishedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
+    if (currTime > prevTime) {
+      deduped.set(naturalKey, ann);
+    }
+  }
+
+  return Array.from(deduped.values());
+}
+
 export async function upsertAnnouncements(
   announcements: RssAnnouncement[],
   agencyId: string,
@@ -21,8 +57,9 @@ export async function upsertAnnouncements(
   let created = 0;
   let updated = 0;
   const byAnnounceType: Record<string, IngestTypeStats> = {};
+  const uniqueAnnouncements = dedupeAnnouncementsByNaturalKey(announcements);
 
-  for (const ann of announcements) {
+  for (const ann of uniqueAnnouncements) {
     const projectNumber = ann.projectNumber.trim();
     if (!projectNumber) {
       // best-effort: ตอนนี้ projectNumber เป็น NOT NULL ดังนั้นถ้ามีข้อมูลไม่ครบให้ข้าม record นี้

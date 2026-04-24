@@ -222,20 +222,18 @@ export default async function Home({
 
           <div className="grid max-w-2xl grid-cols-1 gap-2 text-xs text-slate-700 sm:grid-cols-3">
             <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur">
-              <p className="text-[11px] text-slate-500">โครงการทั้งหมด</p>
-              <p className="text-base font-semibold text-slate-900">
-                {formatStat(stats.totalProjectsCount)}
+              <p className="text-[11px] text-slate-500">เดือนข้อมูลที่กำลังดู</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {formatThaiMonthYear(selectedMonth)}
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur">
-              <p className="text-[11px] text-slate-500">แจ้งเตือน 3 วัน</p>
-              <p className="text-base font-semibold text-amber-600">
-                {formatStat(stats.alertsCount)}
-              </p>
+              <p className="text-[11px] text-slate-500">แหล่งข้อมูลหลัก</p>
+              <p className="text-sm font-semibold text-slate-900">ระบบ e-GP กรมบัญชีกลาง</p>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur">
-              <p className="text-[11px] text-slate-500">อัปเดตล่าสุด</p>
-              <p className="text-sm font-semibold text-slate-900">{lastUpdatedText}</p>
+              <p className="text-[11px] text-slate-500">การอัปเดตข้อมูล</p>
+              <p className="text-sm font-semibold text-slate-900">ตามรอบการดึงข้อมูลอัตโนมัติ</p>
             </div>
           </div>
 
