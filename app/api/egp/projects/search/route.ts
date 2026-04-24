@@ -92,9 +92,27 @@ export async function GET(request: Request) {
       orderBy: { updatedAt: "desc" },
       skip,
       take,
-      include: {
+      select: {
+        id: true,
+        projectNumber: true,
+        title: true,
+        methodId: true,
+        status: true,
+        updatedAt: true,
+        agencyId: true,
         agency: {
           select: { id: true, name: true, deptId: true, deptsubId: true },
+        },
+        _count: {
+          select: { announcements: true },
+        },
+        announcements: {
+          orderBy: [{ publishedAt: "desc" }, { updatedAt: "desc" }],
+          take: 1,
+          select: {
+            announceType: true,
+            publishedAt: true,
+          },
         },
       },
     }),
@@ -102,18 +120,26 @@ export async function GET(request: Request) {
 
   const totalPages = Math.ceil(total / pageSize) || 1;
 
-  const mappedItems = items.map((item) => ({
-    id: item.id,
-    projectNumber: item.projectNumber,
-    title: item.title,
-    methodId: item.methodId,
-    status: item.status,
-    updatedAt: item.updatedAt.toISOString(),
-    agencyId: item.agencyId,
-    agencyName: item.agency.name,
-    agencyDeptId: item.agency.deptId,
-    agencyDeptsubId: item.agency.deptsubId,
-  }));
+  const mappedItems = items.map((item) => {
+    const latestAnnouncement = item.announcements[0];
+
+    return {
+      id: item.id,
+      projectNumber: item.projectNumber,
+      title: item.title,
+      methodId: item.methodId,
+      status: item.status,
+      updatedAt: item.updatedAt.toISOString(),
+      agencyId: item.agencyId,
+      agencyName: item.agency.name,
+      agencyDeptId: item.agency.deptId,
+      agencyDeptsubId: item.agency.deptsubId,
+      announcementCount: item._count.announcements,
+      latestAnnouncementType: latestAnnouncement?.announceType ?? null,
+      latestAnnouncementPublishedAt:
+        latestAnnouncement?.publishedAt?.toISOString() ?? null,
+    };
+  });
 
   return NextResponse.json({
     items: mappedItems,

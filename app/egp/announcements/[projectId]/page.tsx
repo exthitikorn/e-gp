@@ -150,21 +150,34 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      <Link
+        href={backHref}
+        className="fixed bottom-5 left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-4 py-2 text-xs font-medium text-slate-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 sm:bottom-6"
+      >
+        <span aria-hidden>←</span>
+        กลับไปหน้ารายการ
+      </Link>
+
       <div className="border-b border-slate-200 bg-white/80 backdrop-blur">
         <div className="mx-auto max-w-5xl px-4 py-5 md:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <Link
-                href={backHref}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:border-slate-300 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
-              >
-                ← กลับไปหน้ารายการ
-              </Link>
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 sm:text-xs">
+              {data.projectNumber ? (
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium">
+                  เลขที่โครงการ: {data.projectNumber}
+                </span>
+              ) : null}
+              {data.status ? (
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-1 font-medium ${getStatusBadgeClass(
+                    data.status,
+                  )}`}
+                >
+                  {data.status}
+                </span>
+              ) : null}
             </div>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            <h1 className="text-balance text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">
+            <h1 className="text-balance text-xl font-semibold leading-snug tracking-tight text-slate-900 sm:text-2xl">
               {data.title}
             </h1>
           </div>
@@ -177,7 +190,7 @@ export default async function ProjectDetailPage({
           className="mb-6 grid gap-3 sm:grid-cols-3"
           aria-label="สรุปโครงการ"
         >
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-emerald-200">
             <div className="text-[11px] font-medium text-slate-600">
               ราคากลาง
             </div>
@@ -187,7 +200,7 @@ export default async function ProjectDetailPage({
               )}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm transition hover:border-emerald-200">
             <div className="text-[11px] font-medium text-slate-600">
               วงเงินผู้ชนะ/วงเงินจัดหาได้
             </div>
@@ -197,7 +210,7 @@ export default async function ProjectDetailPage({
               )}
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 px-4 py-3 shadow-sm">
             <div className="text-[11px] font-medium text-slate-600">
               ประหยัดได้ (ประมาณการ)
             </div>
@@ -228,56 +241,56 @@ export default async function ProjectDetailPage({
             </p>
           </div>
 
-          <dl className="mt-4 grid gap-x-8 gap-y-3 text-xs sm:grid-cols-2">
-            <div className="flex gap-3">
-              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+          <dl className="mt-4 grid gap-2 text-xs sm:grid-cols-2 sm:gap-3">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-slate-600">
                 หน่วยงาน
               </dt>
-              <dd className="min-w-0 flex-1 text-slate-900">
+              <dd className="mt-0.5 min-w-0 text-slate-900">
                 {data.agency.name}
               </dd>
             </div>
-            <div className="flex gap-3">
-              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-slate-600">
                 เลขที่โครงการ
               </dt>
-              <dd className="min-w-0 flex-1 text-slate-900">
+              <dd className="mt-0.5 min-w-0 text-slate-900">
                 {data.projectNumber ?? (
                   <span className="text-slate-400">-</span>
                 )}
               </dd>
             </div>
-            <div className="flex gap-3">
-              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-slate-600">
                 วิธีการจัดหา
               </dt>
-              <dd className="min-w-0 flex-1 text-slate-900">
+              <dd className="mt-0.5 min-w-0 text-slate-900">
                 {data.methodId ?? <span className="text-slate-400">-</span>}
               </dd>
             </div>
-            <div className="flex gap-3">
-              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-slate-600">
                 วันที่เสนอราคา
               </dt>
-              <dd className="min-w-0 flex-1 text-slate-900">
+              <dd className="mt-0.5 min-w-0 text-slate-900">
                 {formatThaiDate(data.bidDate) ?? (
                   <span className="text-slate-400">-</span>
                 )}
               </dd>
             </div>
-            <div className="flex gap-3">
-              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-slate-600">
                 ผู้ได้รับการคัดเลือก
               </dt>
-              <dd className="min-w-0 flex-1 text-slate-900">
+              <dd className="mt-0.5 min-w-0 text-slate-900">
                 {data.winnerName ?? <span className="text-slate-400">-</span>}
               </dd>
             </div>
-            <div className="flex gap-3">
-              <dt className="w-36 shrink-0 text-[11px] font-medium text-slate-600">
+            <div className="rounded-xl bg-slate-50 px-3 py-2.5">
+              <dt className="text-[11px] font-medium text-slate-600">
                 สถานะ
               </dt>
-              <dd className="min-w-0 flex-1 text-slate-900">
+              <dd className="mt-1 min-w-0 text-slate-900">
                 {data.status ? (
                   <span
                     className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
@@ -332,6 +345,11 @@ export default async function ProjectDetailPage({
                     </div>
 
                     <div className="mt-3 grid gap-2">
+                      {type.rawDescription ? (
+                        <p className="line-clamp-2 text-[11px] text-slate-600">
+                          {type.rawDescription}
+                        </p>
+                      ) : null}
                       <div className="flex flex-wrap gap-2">
                         {canOpen ? (
                           <a
@@ -374,9 +392,9 @@ export default async function ProjectDetailPage({
                     <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       ลิงก์ e-GP
                     </th>
-                    {/* <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
+                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       อ่าน/บันทึกจากเอกสาร
-                    </th> */}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -418,13 +436,13 @@ export default async function ProjectDetailPage({
                             <span className="text-[11px] text-slate-400">-</span>
                           )}
                         </td>
-                        {/* <td className="px-4 py-2 align-top">
+                        <td className="px-4 py-2 align-top">
                           <PdfParseButton
                             announcementId={type.id}
                             announceType={type.announceType}
                             canParse={canOpen}
                           />
-                        </td> */}
+                        </td>
                       </tr>
                     );
                   })}

@@ -28,6 +28,14 @@ export interface LandingStats {
   savingsBahtTotal: number;
   /** จำนวนโครงการทั้งหมด */
   totalProjectsCount: number;
+  /** จำนวนโครงการที่เพิ่มเข้ามาเมื่อวาน (UTC day) */
+  projectsAddedYesterdayCount: number;
+  /** จำนวนโครงการที่เพิ่มเมื่อวาน แยกรายหน่วยงาน */
+  projectsAddedYesterdayByAgency: Array<{
+    agencyId: string;
+    agencyName: string;
+    count: number;
+  }>;
   /** จำนวนประกาศทั้งหมด */
   totalAnnouncementsCount: number;
   /** ปฏิทินจัดซื้อจัดจ้างย้อนหลังรายวัน แยกตามประเภทประกาศ */
@@ -59,6 +67,10 @@ export async function getLandingStats(
   todayStart.setUTCHours(0, 0, 0, 0);
   const sevenDaysAgo = new Date(todayStart);
   sevenDaysAgo.setUTCDate(sevenDaysAgo.getUTCDate() - NEW_ANNOUNCEMENT_DAYS);
+  const yesterdayStart = new Date(todayStart);
+  yesterdayStart.setUTCDate(yesterdayStart.getUTCDate() - 1);
+  const yesterdayEnd = new Date(todayStart);
+  yesterdayEnd.setUTCMilliseconds(-1);
   const closingSoonEnd = new Date(todayStart);
   closingSoonEnd.setUTCDate(closingSoonEnd.getUTCDate() + CLOSING_SOON_DAYS);
   const alertEnd = new Date(todayStart);
@@ -100,6 +112,8 @@ export async function getLandingStats(
     alertsCount,
     savingsBahtTotal,
     totalProjectsCount,
+    projectsAddedYesterdayCount,
+    projectsAddedYesterdayByAgencyRows,
     totalAnnouncementsCount,
     calendarRows,
     latestProjectUpdatedAt,
@@ -145,6 +159,20 @@ export async function getLandingStats(
       return centralSum - winnerSum;
     })(),
     prisma.egpProject.count(),
+    prisma.egpProject.count({
+      where: {
+        createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
+      },
+    }),
+    prisma.egpProject.groupBy({
+      by: ["agencyId"],
+      where: {
+        createdAt: { gte: yesterdayStart, lte: yesterdayEnd },
+      },
+      _count: {
+        _all: true,
+      },
+    }),
     prisma.egpAnnouncement.count(),
     prisma.egpAnnouncement.groupBy({
       by: ["publishedAt", "announceType"],
@@ -223,6 +251,22 @@ export async function getLandingStats(
     }))
     .filter((item) => item.totalCount > 0)
     .sort((a, b) => b.date.getTime() - a.date.getTime());
+  const agencyIds = projectsAddedYesterdayByAgencyRows.map((row) => row.agencyId);
+  const agencies =
+    agencyIds.length > 0
+      ? await prisma.egpAgency.findMany({
+          where: { id: { in: agencyIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const agencyNameById = new Map(agencies.map((agency) => [agency.id, agency.name]));
+  const projectsAddedYesterdayByAgency = projectsAddedYesterdayByAgencyRows
+    .map((row) => ({
+      agencyId: row.agencyId,
+      agencyName: agencyNameById.get(row.agencyId) ?? "ไม่ทราบหน่วยงาน",
+      count: row._count._all,
+    }))
+    .sort((a, b) => b.count - a.count);
 
   const projectUpdatedAt = latestProjectUpdatedAt?.updatedAt ?? null;
   const announcementUpdatedAt = latestAnnouncementUpdatedAt?.updatedAt ?? null;
@@ -240,6 +284,8 @@ export async function getLandingStats(
     alertsCount,
     savingsBahtTotal,
     totalProjectsCount,
+    projectsAddedYesterdayCount,
+    projectsAddedYesterdayByAgency,
     totalAnnouncementsCount,
     procurementCalendar,
     lastUpdatedAt,

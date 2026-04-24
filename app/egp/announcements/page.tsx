@@ -29,6 +29,9 @@ type ProjectSearchItem = {
   agencyName: string;
   agencyDeptId: string | null;
   agencyDeptsubId: string | null;
+  announcementCount: number;
+  latestAnnouncementType: string | null;
+  latestAnnouncementPublishedAt: string | null;
 };
 
 type ProjectSearchResponse = {
@@ -38,6 +41,13 @@ type ProjectSearchResponse = {
   total: number;
   totalPages: number;
 };
+
+function formatThaiDateTime(dateString: string | null): string | null {
+  if (!dateString) return null;
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("th-TH");
+}
 
 function getStatusBadgeClass(status: string): string {
   const normalized = status.trim();
@@ -133,7 +143,7 @@ export default async function AnnouncementsPage({
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             โครงการจัดซื้อจัดจ้าง
           </h1>
-          <div className="space-y-2">
+          <div className="space-y-2 hidden">
             <IngestButton />
           </div>
         </header>
@@ -168,42 +178,47 @@ export default async function AnnouncementsPage({
                 const detailHref = formKey
                   ? `${detailBaseHref}?${formKey}`
                   : detailBaseHref;
+                const latestAnnouncementAtLabel = formatThaiDateTime(
+                  item.latestAnnouncementPublishedAt,
+                );
                 return (
                   <li key={item.id}>
                     <Link
                       href={detailHref}
-                      className="block rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:border-emerald-400/60 hover:bg-emerald-50/40"
+                      className="group block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50"
                     >
-                      <div className="flex flex-col gap-2">
-                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-                          <h2 className="text-sm font-semibold text-slate-900 sm:text-base">
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                          <h2 className="text-sm font-semibold leading-snug text-slate-900 transition-colors group-hover:text-emerald-700 sm:text-base">
                             {item.title}
                           </h2>
-                          {item.status ? (
-                            <span
-                              className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
-                                item.status,
-                              )}`}
-                            >
-                              {item.status}
-                            </span>
-                          ) : (
-                            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
-                              อัปเดตล่าสุด{" "}
-                              {new Date(item.updatedAt).toLocaleString("th-TH")}
-                            </span>
-                          )}
+                          <div className="shrink-0">
+                            {item.status ? (
+                              <span
+                                className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium ${getStatusBadgeClass(
+                                  item.status,
+                                )}`}
+                              >
+                                {item.status}
+                              </span>
+                            ) : (
+                              <span className="inline-flex whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                                อัปเดตล่าสุด{" "}
+                                {new Date(item.updatedAt).toLocaleString("th-TH")}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-600 sm:text-xs">
-                          <span>
+                        <div className="grid gap-2 text-[11px] text-slate-600 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-2 sm:text-xs">
+                          <span className="rounded-lg bg-slate-50 px-2.5 py-1.5">
                             <span className="font-medium text-slate-800">
                               หน่วยงาน:
                             </span>{" "}
                             {item.agencyName}
                           </span>
                           {item.projectNumber && (
-                            <span>
+                            <span className="rounded-lg bg-slate-50 px-2.5 py-1.5">
                               <span className="font-medium text-slate-800">
                                 เลขที่โครงการ:
                               </span>{" "}
@@ -211,13 +226,46 @@ export default async function AnnouncementsPage({
                             </span>
                           )}
                           {item.methodId && (
-                            <span>
+                            <span className="rounded-lg bg-slate-50 px-2.5 py-1.5">
                               <span className="font-medium text-slate-800">
                                 วิธีการจัดหา:
                               </span>{" "}
                               {item.methodId}
                             </span>
                           )}
+                          <span className="rounded-lg bg-slate-50 px-2.5 py-1.5">
+                            <span className="font-medium text-slate-800">
+                              จำนวนประกาศ:
+                            </span>{" "}
+                            {item.announcementCount.toLocaleString("th-TH")}
+                          </span>
+                          <span className="rounded-lg bg-emerald-50/60 px-2.5 py-1.5 sm:col-span-2">
+                            <span className="font-medium text-slate-800">
+                              ประกาศล่าสุด:
+                            </span>{" "}
+                            {item.latestAnnouncementType ? (
+                              <>
+                                {item.latestAnnouncementType}
+                                {latestAnnouncementAtLabel && (
+                                  <>
+                                    {" "}({latestAnnouncementAtLabel})
+                                  </>
+                                )}
+                              </>
+                            ) : (
+                              "-"
+                            )}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-end text-[11px] font-medium text-emerald-700 sm:text-xs">
+                          ดูรายละเอียดโครงการ
+                          <span
+                            aria-hidden="true"
+                            className="ml-1 transition-transform group-hover:translate-x-0.5"
+                          >
+                            →
+                          </span>
                         </div>
                       </div>
                     </Link>

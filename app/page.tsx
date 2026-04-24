@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getLandingStats } from "@/lib/egpLandingStats";
+import ProjectsAddedByAgencyModal from "./ProjectsAddedByAgencyModal";
 
 /** ดึงสถิติจาก DB ทุกครั้งที่โหลดหน้า — ไม่แคชแบบ static หลัง build */
 export const dynamic = "force-dynamic";
@@ -177,6 +178,15 @@ export default async function Home({
     });
   }
 
+  const projectsAddedYesterday = stats.projectsAddedYesterdayCount;
+  const projectsAddedYesterdayText =
+    projectsAddedYesterday > 0
+      ? `เพิ่มขึ้น ${formatStat(projectsAddedYesterday)} จากเมื่อวาน`
+      : "ไม่มีโครงการเพิ่มจากเมื่อวาน";
+  const lastUpdatedText = stats.lastUpdatedAt
+    ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.`
+    : "-";
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-linear-to-b from-slate-50 via-white to-slate-100 text-slate-900">
       {/* soft radial highlight */}
@@ -210,6 +220,25 @@ export default async function Home({
             </p>
           </div>
 
+          <div className="grid max-w-2xl grid-cols-1 gap-2 text-xs text-slate-700 sm:grid-cols-3">
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur">
+              <p className="text-[11px] text-slate-500">โครงการทั้งหมด</p>
+              <p className="text-base font-semibold text-slate-900">
+                {formatStat(stats.totalProjectsCount)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur">
+              <p className="text-[11px] text-slate-500">แจ้งเตือน 3 วัน</p>
+              <p className="text-base font-semibold text-amber-600">
+                {formatStat(stats.alertsCount)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 shadow-sm backdrop-blur">
+              <p className="text-[11px] text-slate-500">อัปเดตล่าสุด</p>
+              <p className="text-sm font-semibold text-slate-900">{lastUpdatedText}</p>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <Link
               href="/egp/announcements"
@@ -219,6 +248,13 @@ export default async function Home({
               <span aria-hidden className="text-base">
                 ↗
               </span>
+            </Link>
+
+            <Link
+              href="/api-description"
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white/80 px-5 py-3 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:text-sm"
+            >
+              API description
             </Link>
 
             <Link
@@ -236,6 +272,7 @@ export default async function Home({
             <header className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-slate-600">แดชบอร์ดสรุปข้อมูล</p>
+                <p className="text-xs text-slate-500">ภาพรวมล่าสุดแบบอ่านเร็ว</p>
               </div>
             </header>
 
@@ -249,14 +286,12 @@ export default async function Home({
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 รายการล่าสุด:{" "}
                 <span className="font-semibold text-slate-900">
-                  {stats.lastUpdatedAt
-                    ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.`
-                    : "-"}
+                  {lastUpdatedText}
                 </span>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-xs sm:text-sm">
+            <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 sm:text-sm">
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
                   จำนวนโครงการทั้งหมด
@@ -264,9 +299,16 @@ export default async function Home({
                 <p className="text-lg font-semibold text-slate-900 sm:text-xl">
                   {formatStat(stats.totalProjectsCount)}
                 </p>
-                <p className="text-[11px] text-slate-600">
-                  รวมทุกโครงการในระบบ
+                <p
+                  className={`text-[11px] ${
+                    projectsAddedYesterday > 0 ? "text-emerald-600" : "text-slate-600"
+                  }`}
+                >
+                  {projectsAddedYesterdayText}
                 </p>
+                <ProjectsAddedByAgencyModal
+                  items={stats.projectsAddedYesterdayByAgency}
+                />
               </div>
               <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
                 <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-500">
@@ -324,23 +366,23 @@ export default async function Home({
           </div>
 
           <div className="mb-2 flex justify-center text-[11px] text-slate-500">
-            <div className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2 py-1">
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-2 py-1 shadow-sm">
               <Link
                 href={`/?month=${toMonthParam(prevMonth)}`}
                 aria-label="เดือนก่อนหน้า"
-                className="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-base font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
               >
-                &lt;
+                &#x2039;
               </Link>
-              <span className="text-[11px] font-medium text-slate-700">
+              <span className="min-w-36 text-center text-[11px] font-medium text-slate-700">
                 {formatThaiMonthYear(selectedMonth)}
               </span>
               <Link
                 href={`/?month=${toMonthParam(nextMonth)}`}
                 aria-label="เดือนถัดไป"
-                className="text-sm font-semibold text-slate-700 hover:text-slate-900"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-full text-base font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-900"
               >
-                &gt;
+                &#x203A;
               </Link>
             </div>
           </div>
@@ -385,7 +427,7 @@ export default async function Home({
                   return (
                     <div
                       key={cell.date.toISOString()}
-                      className={`aspect-square rounded-md border p-1.5 ${
+                      className={`min-h-[104px] rounded-md border p-1.5 sm:min-h-[112px] ${
                         isToday
                           ? "border-emerald-300 bg-emerald-50"
                           : "border-slate-200 bg-slate-50"
@@ -432,10 +474,7 @@ export default async function Home({
               ร่างประชาพิจารณ์และประกาศเชิญชวนอัพเดทข้อมูลตามรอบดึงข้อมูลจากกรมบัญชีกลาง
             </p>
             <p>
-              ข้อมูลปรับปรุง ณ{" "}
-              {stats.lastUpdatedAt
-                ? `${formatThaiDateTime(stats.lastUpdatedAt)} น.`
-                : "-"}
+              ข้อมูลปรับปรุง ณ {lastUpdatedText}
             </p>
           </div>
         </div>
