@@ -127,7 +127,13 @@ export function AnnouncementsFilters({
             </option>
           </select>
         </div>
-        <div className="sm:col-span-5 flex items-end justify-end gap-2">
+        <div className="sm:col-span-5 flex flex-wrap items-end justify-end gap-2">
+          <button
+            type="submit"
+            className="inline-flex items-center rounded-md border border-emerald-500 bg-emerald-500 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:border-emerald-600 hover:bg-emerald-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+          >
+            ค้นหา
+          </button>
           <Link
             href="/egp/announcements"
             className="inline-flex items-center rounded-md border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 shadow-sm hover:border-rose-400 hover:bg-rose-100 hover:text-rose-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"

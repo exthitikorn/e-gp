@@ -21,8 +21,38 @@ model EgpAgency {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  projects      EgpProject[]
-  announcements EgpAnnouncement[]
+  projects        EgpProject[]
+  announcements   EgpAnnouncement[]
+  ingestUrlLogs   EgpIngestUrlLog[]
+}
+
+/// log ผลการดึง RSS แต่ละ URL ระหว่าง ingest
+model EgpIngestUrlLog {
+  id     String @id @default(cuid()) @db.VarChar(191)
+  /// รหัสงาน async ingest (ถ้ามี)
+  jobId  String? @db.VarChar(191)
+  agencyId String    @db.VarChar(191)
+  agency   EgpAgency @relation(fields: [agencyId], references: [id], onDelete: Cascade)
+
+  url         String  @db.VarChar(2048)
+  announceType String? @db.VarChar(32)
+  rssScopeKey String? @db.VarChar(191)
+  /// รหัสที่ส่งใน query เป็น `deptId` สำหรับ URL นี้ (null ถ้า URL ใช้แค่ deptsubId)
+  deptId    String? @db.VarChar(191)
+  /// รหัสที่ส่งใน query เป็น `deptsubId` สำหรับ URL นี้ (null ถ้า URL ใช้แค่ deptId)
+  deptsubId String? @db.VarChar(191)
+
+  status       String  @db.VarChar(32)
+  httpStatus   Int?
+  errorMessage String? @db.Text
+  itemsParsed  Int?
+  durationMs   Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([agencyId, createdAt])
+  @@index([jobId])
+  @@index([createdAt])
 }
 
 model EgpProject {

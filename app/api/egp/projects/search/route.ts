@@ -17,8 +17,9 @@ const DEFAULT_PAGE_SIZE = 5;
 function parseSearchParams(request: Request): SearchParams {
   const { searchParams } = new URL(request.url);
 
-  const q = searchParams.get("q");
-  const projectNumber = searchParams.get("projectNumber");
+  const q = searchParams.get("q")?.trim() || null;
+  const projectNumber =
+    searchParams.get("projectNumber")?.trim() || null;
   const methodId = searchParams.get("methodId");
   const status = searchParams.get("status");
   const agencyId =

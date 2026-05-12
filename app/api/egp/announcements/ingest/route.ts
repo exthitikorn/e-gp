@@ -324,7 +324,7 @@ async function sleep(ms: number): Promise<void> {
 async function fetchXmlFromUrl(
   url: string,
   options?: { signal?: AbortSignal },
-): Promise<string> {
+): Promise<{ xml: string; httpStatus: number }> {
   const retryCount = RSS_FETCH_RETRIES;
   let lastError: unknown;
 
@@ -351,7 +351,8 @@ async function fetchXmlFromUrl(
       }
 
       const buffer = await response.arrayBuffer();
-      return iconv.decode(Buffer.from(buffer), "win874");
+      const xml = iconv.decode(Buffer.from(buffer), "win874");
+      return { xml, httpStatus: response.status };
     } catch (err) {
       lastError = err;
       const canRetry = attempt < retryCount && isRetryableFetchError(err);
@@ -371,6 +372,8 @@ async function fetchAllAnnouncementsFromEgpForAgency(
   params: {
     deptId: string | null;
     deptsubId: string | null;
+    agencyId: string;
+    jobId?: string;
   },
   options?: {
     signal?: AbortSignal;
@@ -396,6 +399,8 @@ async function fetchAllAnnouncementsFromEgpForAgency(
     ALL_EGP_ANNOUNCE_TYPES.map((anounceType) => ({
       scopeKey: scope.scopeKey,
       announceType: anounceType,
+      deptId: scope.deptId ?? null,
+      deptsubId: scope.deptsubId ?? null,
       url: buildEgpRssUrl({
         deptId: scope.deptId,
         deptsubId: scope.deptsubId,
@@ -406,8 +411,27 @@ async function fetchAllAnnouncementsFromEgpForAgency(
 
   /** ดึง RSS ทีละ URL ต่อหน่วยงาน (ลดโหลดปลายทาง / ลดการแย่งช่องทาง) */
   type RssFeedSettled =
-    | { kind: "fulfilled"; scopeKey: string | null; xmlText: string }
-    | { kind: "rejected"; url: string; message: string };
+    | {
+        kind: "fulfilled";
+        scopeKey: string | null;
+        announceType: EgpAnnounceType;
+        url: string;
+        deptId: string | null;
+        deptsubId: string | null;
+        xmlText: string;
+        httpStatus: number;
+        durationMs: number;
+      }
+    | {
+        kind: "rejected";
+        url: string;
+        announceType: EgpAnnounceType;
+        scopeKey: string | null;
+        deptId: string | null;
+        deptsubId: string | null;
+        message: string;
+        durationMs: number;
+      };
   const settled: RssFeedSettled[] = [];
   const onFeedProgress = options?.onFeedProgress;
   for (let fi = 0; fi < urls.length; fi += 1) {
@@ -418,14 +442,30 @@ async function fetchAllAnnouncementsFromEgpForAgency(
       announceType: item.announceType,
       scopeKey: item.scopeKey,
     });
+    const t0 = Date.now();
     try {
-      const xmlText = await fetchXmlFromUrl(item.url, { signal });
-      settled.push({ kind: "fulfilled", scopeKey: item.scopeKey, xmlText });
+      const { xml, httpStatus } = await fetchXmlFromUrl(item.url, { signal });
+      settled.push({
+        kind: "fulfilled",
+        scopeKey: item.scopeKey,
+        announceType: item.announceType,
+        url: item.url,
+        deptId: item.deptId,
+        deptsubId: item.deptsubId,
+        xmlText: xml,
+        httpStatus,
+        durationMs: Date.now() - t0,
+      });
     } catch (err) {
       settled.push({
         kind: "rejected",
         url: item.url,
+        announceType: item.announceType,
+        scopeKey: item.scopeKey,
+        deptId: item.deptId,
+        deptsubId: item.deptsubId,
         message: formatFetchRootCause(err),
+        durationMs: Date.now() - t0,
       });
     }
   }
@@ -433,6 +473,24 @@ async function fetchAllAnnouncementsFromEgpForAgency(
   const failedFeeds = settled.filter((item) => item.kind === "rejected");
 
   if (xmlTexts.length === 0) {
+    if (failedFeeds.length > 0) {
+      await prisma.egpIngestUrlLog.createMany({
+        data: failedFeeds.map((row) => ({
+          jobId: params.jobId ?? null,
+          agencyId: params.agencyId,
+          url: row.url,
+          announceType: row.announceType,
+          rssScopeKey: row.scopeKey,
+          deptId: row.deptId,
+          deptsubId: row.deptsubId,
+          status: "failed",
+          httpStatus: null,
+          errorMessage: row.message,
+          itemsParsed: null,
+          durationMs: row.durationMs,
+        })),
+      });
+    }
     const sample = failedFeeds
       .slice(0, 3)
       .map((item) => `${item.url} => ${item.message}`)
@@ -449,15 +507,66 @@ async function fetchAllAnnouncementsFromEgpForAgency(
     textNodeName: "#text",
   });
 
-  const allAnnouncementsArrays = xmlTexts.map((item) => {
+  const perFeedParsed = xmlTexts.map((item) => {
     const parsed = parser.parse(item.xmlText) as ParsedRss;
-    return mapRssToAnnouncements(parsed, {
+    const announcements = mapRssToAnnouncements(parsed, {
       rssScopeKeyForStableId: item.scopeKey || undefined,
     });
+    return { ...item, announcements };
   });
 
+  const logRows: Array<{
+    jobId: string | null;
+    agencyId: string;
+    url: string;
+    announceType: string | null;
+    rssScopeKey: string | null;
+    deptId: string | null;
+    deptsubId: string | null;
+    status: string;
+    httpStatus: number | null;
+    errorMessage: string | null;
+    itemsParsed: number | null;
+    durationMs: number | null;
+  }> = [];
+  for (const row of perFeedParsed) {
+    logRows.push({
+      jobId: params.jobId ?? null,
+      agencyId: params.agencyId,
+      url: row.url,
+      announceType: row.announceType,
+      rssScopeKey: row.scopeKey,
+      deptId: row.deptId,
+      deptsubId: row.deptsubId,
+      status: "success",
+      httpStatus: row.httpStatus,
+      errorMessage: null,
+      itemsParsed: row.announcements.length,
+      durationMs: row.durationMs,
+    });
+  }
+  for (const row of failedFeeds) {
+    logRows.push({
+      jobId: params.jobId ?? null,
+      agencyId: params.agencyId,
+      url: row.url,
+      announceType: row.announceType,
+      rssScopeKey: row.scopeKey,
+      deptId: row.deptId,
+      deptsubId: row.deptsubId,
+      status: "failed",
+      httpStatus: null,
+      errorMessage: row.message,
+      itemsParsed: null,
+      durationMs: row.durationMs,
+    });
+  }
+  if (logRows.length > 0) {
+    await prisma.egpIngestUrlLog.createMany({ data: logRows });
+  }
+
   return {
-    announcements: allAnnouncementsArrays.flat(),
+    announcements: perFeedParsed.flatMap((item) => item.announcements),
     failedFeedCount: failedFeeds.length,
     totalFeedCount: urls.length,
     failedFeedSamples: failedFeeds
@@ -583,6 +692,8 @@ async function runIngest(jobId?: string): Promise<IngestResult> {
               {
                 deptId: agency.deptId,
                 deptsubId: agency.deptsubId,
+                agencyId: agency.id,
+                jobId,
               },
               {
                 signal: abortController.signal,
