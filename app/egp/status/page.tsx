@@ -27,6 +27,7 @@ import { StatusDurationTrendChart } from "./StatusDurationTrendChart";
 import { StatusJobDurationTrendChart } from "./StatusJobDurationTrendChart";
 import { StatusOverviewCards } from "./StatusOverviewCards";
 import { StatusTypeSummary } from "./StatusTypeSummary";
+import { IngestButton } from "../announcements/IngestButton";
 
 interface StatusPageProps {
   searchParams?: Promise<IngestStatusSearchParams>;
@@ -103,13 +104,16 @@ export default async function EgpStatusPage({ searchParams }: StatusPageProps) {
                 Dashboard ตรวจสอบ ingest — ความสำเร็จ ข้อผิดพลาด และประสิทธิภาพ
               </p>
             </div>
-            <p className="text-xs text-slate-500">
-              log ตามตัวกรอง:{" "}
-              <span className="font-semibold text-slate-800">
-                {total.toLocaleString("th-TH")}
-              </span>{" "}
-              รายการ
-            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <IngestButton />
+              <p className="text-xs text-slate-500">
+                log ตามตัวกรอง:{" "}
+                <span className="font-semibold text-slate-800">
+                  {total.toLocaleString("th-TH")}
+                </span>{" "}
+                รายการ
+              </p>
+            </div>
           </div>
           <StatusActiveFilters
             searchParams={resolvedSearchParams}
