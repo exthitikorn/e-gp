@@ -23,12 +23,18 @@ export default async function EgpAgenciesPage() {
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900 md:px-8">
       <div className="mx-auto max-w-5xl">
         <header className="mb-8 space-y-2">
-          <div className="text-sm text-slate-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
             <Link
               href="/"
               className="inline-flex items-center gap-2 text-emerald-700 hover:text-emerald-800"
             >
               ← กลับหน้า landing
+            </Link>
+            <Link
+              href="/egp/status"
+              className="text-emerald-700 hover:text-emerald-800"
+            >
+              สถานะการดึง RSS
             </Link>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">

@@ -139,11 +139,17 @@ export default async function AnnouncementsPage({
             >
               ← กลับหน้า landing
             </Link>
+            <Link
+              href="/egp/status"
+              className="text-emerald-700 hover:text-emerald-800"
+            >
+              สถานะการดึง RSS
+            </Link>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             โครงการจัดซื้อจัดจ้าง
           </h1>
-          <div className="space-y-2 hidden">
+          <div className="space-y-2">
             <IngestButton />
           </div>
         </header>

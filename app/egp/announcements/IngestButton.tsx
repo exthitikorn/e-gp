@@ -57,6 +57,8 @@ interface IngestJobProgress {
   /** ISO — จากเซิร์ฟเวอร์ เริ่มนับเมื่อเริ่มดึง RSS ครั้งแรก */
   fetchStartedAt?: string;
   currentFeedIndex?: number;
+  /** จำนวนฟีดที่ดึงเสร็จแล้ว (สำเร็จหรือล้มเหลว) — ใช้กับ parallel fetch */
+  completedFeeds?: number;
   totalFeeds?: number;
   currentAnnounceType?: string;
   currentRssScopeKey?: string | null;
@@ -83,10 +85,10 @@ function progressPercent(p: IngestJobProgress): number {
   }
   const i = p.currentAgencyIndex;
   const totalFeeds = p.totalFeeds ?? 0;
-  const feedIdx = p.currentFeedIndex ?? 0;
+  const feedDone = p.completedFeeds ?? p.currentFeedIndex ?? 0;
   const fetchSlotWithinAgency =
-    totalFeeds > 0 && feedIdx > 0
-      ? Math.min(0.58, (feedIdx / totalFeeds) * 0.58)
+    totalFeeds > 0 && feedDone > 0
+      ? Math.min(0.58, (feedDone / totalFeeds) * 0.58)
       : 0.25;
   const slot =
     p.phase === "fetch"
@@ -125,9 +127,12 @@ function progressDescription(p: IngestJobProgress): string {
     return `ข้ามการตั้งค่า RSS (${idx}/${n}): ${name}`;
   }
   if (p.phase === "fetch") {
+    const feedDone = p.completedFeeds ?? p.currentFeedIndex ?? 0;
     const feedPart =
-      p.totalFeeds && p.currentFeedIndex && p.currentAnnounceType
-        ? ` — ประเภท ${p.currentAnnounceType} (${p.currentFeedIndex}/${p.totalFeeds})`
+      p.totalFeeds && feedDone > 0
+        ? p.currentAnnounceType
+          ? ` — ประเภท ${p.currentAnnounceType} (${feedDone}/${p.totalFeeds})`
+          : ` (${feedDone}/${p.totalFeeds})`
         : "";
     const scopePart =
       p.currentRssScopeKey != null && String(p.currentRssScopeKey).trim() !== ""

@@ -11,6 +11,39 @@ export type EgpAnnounceType =
   | "D2"
   | "W2";
 
+/** รหัสประเภทประกาศ RSS (`anounceType`) ตามคู่มือ e-GP */
+export const ALL_EGP_ANNOUNCE_TYPES: readonly EgpAnnounceType[] = [
+  "P0",
+  "15",
+  "B0",
+  "D0",
+  "W0",
+  "D1",
+  "W1",
+  "D2",
+  "W2",
+];
+
+/** ชื่อไทยของรหัสประเภทประกาศ RSS ตามคู่มือ e-GP */
+export const EGP_ANNOUNCE_TYPE_LABELS: Record<EgpAnnounceType, string> = {
+  P0: "แผนการจัดซื้อจัดจ้าง",
+  "15": "ประกาศราคากลาง",
+  B0: "ร่างเอกสารประกวดราคา (e-Bidding) และร่างเอกสารซื้อหรือจ้างด้วยวิธีสอบราคา",
+  D0: "ประกาศเชิญชวน",
+  W0: "ประกาศรายชื่อผู้ชนะการเสนอราคา / ประกาศผู้ได้รับการคัดเลือก",
+  D1: "ยกเลิกประกาศเชิญชวน",
+  W1: "ยกเลิกประกาศรายชื่อผู้ชนะการเสนอราคา / ประกาศผู้ได้รับการคัดเลือก",
+  D2: "เปลี่ยนแปลงประกาศเชิญชวน",
+  W2: "เปลี่ยนแปลงประกาศรายชื่อผู้ชนะการเสนอราคา",
+};
+
+export function getEgpAnnounceTypeLabel(
+  code: string | null | undefined,
+): string {
+  if (!code) return "-";
+  return EGP_ANNOUNCE_TYPE_LABELS[code as EgpAnnounceType] ?? code;
+}
+
 export type EgpMethodId =
   | "02"
   | "15"

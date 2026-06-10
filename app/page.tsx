@@ -249,6 +249,13 @@ export default async function Home({
             </Link>
 
             <Link
+              href="/egp/status"
+              className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white/80 px-5 py-3 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:text-sm"
+            >
+              สถานะการดึง RSS
+            </Link>
+
+            <Link
               href="/api-description"
               className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white/80 px-5 py-3 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:text-sm"
             >

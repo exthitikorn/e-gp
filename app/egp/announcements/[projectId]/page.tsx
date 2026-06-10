@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
+import { FileText } from "lucide-react";
 import { PdfParseButton } from "../PdfParseButton";
 
 function formatThaiDate(dateString: string | null): string | null {
@@ -319,7 +320,7 @@ export default async function ProjectDetailPage({
                   ประกาศและเอกสารที่เกี่ยวข้อง
                 </h2>
                 <p className="mt-1 text-[11px] text-slate-500">
-                  เปิดลิงก์ไป e-GP หรืออ่าน/บันทึกข้อมูลจากไฟล์ PDF (ถ้ามี)
+                  เปิดลิงก์ไป e-GP เพื่อดูประกาศและเอกสารที่เกี่ยวข้อง
                 </p>
               </div>
               <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
@@ -350,15 +351,17 @@ export default async function ProjectDetailPage({
                           {type.rawDescription}
                         </p>
                       ) : null}
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap justify-center gap-2">
                         {canOpen ? (
                           <a
                             href={type.link}
                             target="_blank"
                             rel="noreferrer"
-                            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 shadow-sm hover:border-emerald-300 hover:bg-emerald-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+                            aria-label="เปิดใน e-GP"
+                            title="เปิดใน e-GP"
+                            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white p-1.5 text-emerald-700 shadow-sm hover:border-emerald-300 hover:bg-emerald-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
                           >
-                            เปิดใน e-GP ↗
+                            <FileText className="size-4" aria-hidden />
                           </a>
                         ) : (
                           <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500">
@@ -366,7 +369,7 @@ export default async function ProjectDetailPage({
                           </span>
                         )}
                       </div>
-                      <div>
+                      <div className="hidden">
                         <PdfParseButton
                           announcementId={type.id}
                           announceType={type.announceType}
@@ -389,10 +392,10 @@ export default async function ProjectDetailPage({
                     <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       วันที่เผยแพร่
                     </th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
-                      ลิงก์ e-GP
+                    <th className="px-4 py-2 text-center text-[11px] font-semibold text-slate-900">
+                      เอกสารประกาศ
                     </th>
-                    <th className="px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
+                    <th className="hidden px-4 py-2 text-left text-[11px] font-semibold text-slate-900">
                       อ่าน/บันทึกจากเอกสาร
                     </th>
                   </tr>
@@ -421,22 +424,23 @@ export default async function ProjectDetailPage({
                             <span className="text-[11px] text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 align-top">
+                        <td className="px-4 py-2 text-center align-middle">
                           {canOpen && type.link ? (
                             <a
                               href={type.link}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-800"
+                              aria-label="เปิดใน e-GP"
+                              title="เปิดใน e-GP"
+                              className="inline-flex items-center justify-center text-emerald-700 hover:text-emerald-800"
                             >
-                              เปิดใน e-GP
-                              <span aria-hidden>↗</span>
+                              <FileText className="size-4" aria-hidden />
                             </a>
                           ) : (
                             <span className="text-[11px] text-slate-400">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-2 align-top">
+                        <td className="hidden px-4 py-2 align-top">
                           <PdfParseButton
                             announcementId={type.id}
                             announceType={type.announceType}

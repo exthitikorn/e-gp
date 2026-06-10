@@ -4,6 +4,7 @@
 หน้าเว็บหลัก:
 - รายการโครงการและประกาศ: `/egp/announcements`
 - รายละเอียดโครงการ: `/egp/announcements/[projectId]`
+- สถานะการดึง RSS (Ingest Log): `/egp/status`
 
 ## ฟีเจอร์หลัก
 - Ingest ข้อมูลจาก e-GP RSS (ทุกประเภทประกาศที่กำหนดในโค้ด)
@@ -87,3 +88,5 @@ npm run dev
 - `npm run start` (next start)
 - `npm run prisma:migrate` (ย้าย/อัปเดต schema)
 - `npm run lint` (eslint)
+- `npm run seed:failed-logs` (seed mock failed ingest logs สำหรับทดสอบ `/egp/status`)
+- `npm run seed:failed-logs -- --clean` (ลบ seed logs)
