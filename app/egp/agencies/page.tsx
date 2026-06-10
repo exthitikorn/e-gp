@@ -30,12 +30,6 @@ export default async function EgpAgenciesPage() {
             >
               ← กลับหน้า landing
             </Link>
-            <Link
-              href="/egp/status"
-              className="text-emerald-700 hover:text-emerald-800"
-            >
-              สถานะการดึง RSS
-            </Link>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
             จัดการหน่วยงาน (e-GP RSS)

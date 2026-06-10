@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
@@ -364,14 +363,6 @@ export default function AgenciesCrud({ initialAgencies }: AgenciesCrudProps) {
         )}
       </section>
 
-      <p className="text-xs text-slate-500">
-        <Link
-          href="/egp/announcements"
-          className="text-emerald-700 hover:text-emerald-800"
-        >
-          ← กลับหน้ารายการโครงการ
-        </Link>
-      </p>
     </div>
   );
 }

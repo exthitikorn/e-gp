@@ -93,18 +93,6 @@ export default async function EgpStatusPage({ searchParams }: StatusPageProps) {
             >
               ← กลับหน้า landing
             </Link>
-            <Link
-              href="/egp/announcements"
-              className="text-emerald-700 hover:text-emerald-800"
-            >
-              โครงการจัดซื้อจัดจ้าง
-            </Link>
-            <Link
-              href="/egp/agencies"
-              className="text-emerald-700 hover:text-emerald-800"
-            >
-              จัดการหน่วยงาน
-            </Link>
           </div>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>

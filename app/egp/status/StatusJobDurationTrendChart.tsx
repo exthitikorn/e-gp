@@ -28,12 +28,6 @@ function pickDurationUnit(maxMs: number): DurationUnit {
   return "min";
 }
 
-function durationUnitLabel(unit: DurationUnit): string {
-  if (unit === "ms") return "ms";
-  if (unit === "s") return "วินาที";
-  return "นาที";
-}
-
 function formatDurationMs(ms: number, unit: DurationUnit): string {
   if (ms <= 0) return "-";
   if (unit === "ms") return `${Math.round(ms)} ms`;

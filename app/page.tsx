@@ -239,23 +239,6 @@ export default async function Home({
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
             <Link
-              href="/egp/announcements"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-linear-to-r from-cyan-500 via-emerald-500 to-sky-500 px-6 py-3 text-sm font-semibold text-white shadow-[0_18px_45px_-18px_rgba(34,197,94,0.65)] transition hover:-translate-y-0.5 hover:shadow-[0_22px_60px_-22px_rgba(34,197,94,0.8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 md:text-base"
-            >
-              ดูโครงการจัดซื้อจัดจ้าง
-              <span aria-hidden className="text-base">
-                ↗
-              </span>
-            </Link>
-
-            <Link
-              href="/egp/status"
-              className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white/80 px-5 py-3 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:text-sm"
-            >
-              สถานะการดึง RSS
-            </Link>
-
-            <Link
               href="/api-description"
               className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white/80 px-5 py-3 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-50 sm:text-sm"
             >
